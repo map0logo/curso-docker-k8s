@@ -1,0 +1,17 @@
+---
+title: Docker Compose
+subtitle: Orquestación de aplicaciones con múltiples contenedores
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt, activistasxsl
+format:
+  clean-revealjs
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+---
