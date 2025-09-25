@@ -14,4 +14,1222 @@ html-math-method:
   url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 lang: es
 logo: images/qu4nt-logo.png
+lightbox: true
 ---
+
+# ¡Bienvenidos al Módulo 3: Imágenes Docker!
+
+## ¿Qué aprenderemos hoy?
+
+```{mermaid}
+graph TD
+    A[Imágenes Docker] --> B[Búsqueda en Docker Hub]
+    A --> C[Anatomía Dockerfile]
+    A --> D[RUN vs CMD vs ENTRYPOINT]
+    A --> E[Mejores Prácticas]
+```
+
+- Comprender qué son las imágenes de Docker y cómo funcionan.
+- Aprender a buscar, crear y optimizar imágenes.
+- Conocer las mejores prácticas para construir imágenes seguras y eficientes.
+
+# **Nota:** 
+
+Este módulo es como un viaje por el corazón de Docker. ¡Prepárate para sumergirte en el mundo de las imágenes!
+
+
+---
+
+## ¿Qué es exactamente una imagen Docker?
+
+### La receta de un contenedor 🍰
+
+Pensemos en una imagen como...
+
+- **Molde para galletas**: Define la forma pero no es la galleta misma
+- **Receta de cocina**: Instrucciones para crear un plato específico
+- **Plantilla**: Puedes crear múltiples contenedores a partir de una imagen
+
+> **Definición técnica**: Sistema de archivos de solo lectura + metadatos
+
+## Imagen Docker: Concepto
+
+Plantilla inmutable que contiene todo lo necesario para ejecutar una aplicación:
+
+  - Código
+  - Bibliotecas
+  - Dependencias
+  - Variables de entorno
+  - Configuraciones
+
+---
+
+## Búsqueda de imágenes en repositorios
+
+### ¿Qué es Docker Hub?
+
+Es un repositorio público donde puedes encontrar imágenes preconstruidas para casi cualquier propósito.
+
+Ejemplos populares:
+
+  - `nginx`: Para servidores web.
+  - `postgres`: Para bases de datos.
+  - `python`: Para aplicaciones en Python.
+
+## Docker Hub: El "App Store" de Docker 🏪
+
+### ¿Qué tipos de imágenes puedes encontrar?
+
+```{mermaid}
+graph TB
+    A[Docker Hub] --> B[Imágenes Oficiales]
+    A --> C[Imágenes Verificadas]
+    A --> D[Imágenes de Comunidad]
+    
+    B --> B1[nginx, node, python]
+    C --> C1[Empresas verificadas]
+    D --> D1[Desarrolladores]
+```
+
+---
+
+## Búsqueda práctica en Docker Hub
+
+### Comandos esenciales para explorar
+
+```bash
+# Buscar imágenes
+docker search nginx
+
+# Ver detalles de una imagen
+docker inspect nginx:latest
+
+# Descargar una imagen
+docker pull nginx:alpine
+```
+
+\
+
+### Etiquetas (tags) importantes:
+
+- `latest` - Última versión (¡cuidado en producción!)
+- `alpine` - Versión minimalista con Alpine Linux
+- Versiones específicas: `nginx:1.21`, `node:16-alpine`
+
+## Alternativas a Docker: El Panorama Actual
+
+### No solo existe Docker en el mundo de los contenedores
+
+```{mermaid}
+graph TB
+    A[Alternativas a Docker] --> B[Podman]
+    A --> C[Containerd]
+    A --> D[Kubernetes Pods]
+    A --> E[LXC/LXD]
+    
+    B --> B1[Sin daemon, rootless]
+    C --> C1[Motor subyacente]
+    D --> D1[Orquestación nativa]
+    E --> E1[Contenedores de sistema]
+```
+
+---
+
+## Podman: El Competidor Más Fuerte 🥊
+
+### ¿Por qué la gente se muda a Podman?
+
+**Ventajas clave:**
+
+- ✅ **Sin daemon**: No necesita proceso background siempre ejecutándose
+- ✅ **Rootless**: Ejecuta contenedores sin privilegios root (más seguro)
+- ✅ **Compatible con Docker**: Usa los mismos Dockerfiles
+- ✅ **Pods nativos**: Como Kubernetes pero local
+
+**Comandos familiares:**
+```bash
+podman run nginx:alpine      # En lugar de docker run
+podman build -t mi-app .     # Mismo Dockerfile
+```
+
+**¿Maduro para producción?**
+✅ **SÍ** - Red Hat lo usa extensivamente
+
+---
+
+## Containerd: El Motor Subyacente 🔧
+
+### Docker por dentro usa containerd
+
+**Relación interesante:**
+```{mermaid}
+graph LR
+    A[Docker] --> B[containerd]
+    B --> C[runc]
+    C --> D[Contenedor]
+    
+    style A fill:#lightblue
+    style B fill:#lightgreen
+```
+
+**¿Cuándo usar containerd directamente?**
+
+- Cuando necesitas máximo rendimiento y control
+- En plataformas de orquestación (Kubernetes lo adopta)
+- Para sistemas embebidos o de recursos limitados
+
+**Madurez:** ✅ **Muy maduro** - Es el estándar industrial
+
+---
+
+## Kubernetes con Containerd: La Evolución Natural
+
+### ¿Por qué Kubernetes prefiere containerd?
+
+```bash
+# Kubernetes ya no depende de Docker
+kubelet --container-runtime=containerd
+```
+
+**Ventajas:**
+
+- Menor overhead que Docker
+- Mejor integración con el ecosistema Kubernetes
+- Más ligero y específico para orquestación
+
+**¿Maduro?** ✅ **Sí** - Desde Kubernetes 1.20+ es estándar
+
+---
+
+## LXC/LXD: Contenedores de Sistema Completo 🖥️
+
+### Diferente filosofía:
+
+| Característica | Docker | LXC |
+|----------------|---------|-----|
+| **Propósito** | Aplicación | Sistema operativo |
+| **Tamaño** | MBs | GBs |
+| **Uso típico** | Microservicios | Máquinas virtuales ligeras |
+
+**¿Cuándo usar LXC?**
+
+- Cuando necesitas un "sistema operativo completo" en contenedor
+- Para hosting tradicional pero más ligero que VMs
+- Entornos de desarrollo que simulan servidores completos
+
+---
+
+## ¿Están maduras para producción? 📊
+
+### Resumen por tecnología:
+
+| Tecnología | Madurez | Caso de uso ideal |
+|------------|---------|-------------------|
+| **Podman** | ✅ Alta | Desarrollo local, entornos enterprise Red Hat |
+| **Containerd** | ✅ Muy Alta | Kubernetes, plataformas cloud |
+| **LXC/LXD** | ✅ Alta | Hosting, VMs ligeras, desarrollo sistema completo |
+| **Docker** | ✅ Estándar | Desarrollo general, CI/CD |
+
+**Veredicto:** El ecosistema está maduro, cada herramienta tiene su nicho.
+
+---
+
+## Alternativas a Docker Hub: Registros de Contenedores 🌐
+
+### El panorama de registros:
+
+```{mermaid}
+graph TB
+    A[Registros de Contenedores] --> B[Públicos]
+    A --> C[Privados/Enterprise]
+    A --> D[Autohospedados]
+    
+    B --> B1[Docker Hub]
+    B --> B2[GHCR GitHub]
+    B --> B3[Quay.io]
+    
+    C --> C1[Azure ACR]
+    C --> C2[AWS ECR]
+    C --> C3[GCP GCR]
+    
+    D --> D1[Harbor]
+    D --> D2[Nexus]
+    D --> D3[Portus]
+```
+
+---
+
+## GitHub Container Registry (GHCR) 🐙
+
+### La apuesta de GitHub
+
+**¿Por qué usarlo?**
+
+- ✅ Integración nativa con GitHub Actions
+- ✅ Gratuito para paquetes públicos
+- ✅ Permisos basados en repositorios GitHub
+- ✅ Buen rendimiento
+
+**Ejemplo de uso:**
+```yaml
+# GitHub Actions
+- name: Build and push
+  uses: docker/build-push-action@v2
+  with:
+    push: true
+    tags: ghcr.io/usuario/app:latest
+```
+
+---
+
+## Quay.io: La alternativa empresarial 🏢
+
+### Desarrollado por Red Hat
+
+**Características destacadas:**
+
+- 🔒 Escaneo de vulnerabilidades integrado
+- 👥 Control de acceso granular
+- 🔄 Replicación entre registros
+- 📊 Analytics de uso
+
+**Casos de uso:**
+
+- Empresas que necesitan seguridad avanzada
+- Entornos regulados (healthcare, finance)
+- Integración con OpenShift
+
+---
+
+## Registros Cloud: ACR, ECR, GCR ☁️
+
+### Cada cloud tiene su registro optimizado
+
+| Cloud | Registro | Ventajas |
+|-------|----------|----------|
+| **AWS** | ECR | Integración IAM, costo con EC2 |
+| **Azure** | ACR | Integración con AKS, DevOps |
+| **GCP** | GCR/AR | Integración con GKE, seguridad |
+
+**¿Cuándo usarlos?**
+
+- Cuando tu infraestructura está en ese cloud
+- Para mejor rendimiento y costos integrados
+- Cuando necesitas políticas de seguridad del cloud
+
+---
+
+## Registros Autohospedados: Harbor 🏰
+
+### Para control total:
+
+**Harbor características:**
+
+- ✅ Escaneo de vulnerabilidades (Trivy/Clair)
+- ✅ Replicación entre instancias
+- ✅ Soporte para imágenes Helm
+- ✅ Interfaz web completa
+
+**¿Cuándo autohospedar?**
+
+- Empresas con requisitos de soberanía de datos
+- Entornos air-gapped (sin internet)
+- Cuando necesitas políticas personalizadas
+- Para tener control total sobre los costos
+
+---
+
+## ¿Cuándo usar cada alternativa? 🧭
+
+### Guía de decisión:
+
+```{mermaid}
+graph LR
+    A[¿Qué registro usar?] --> B{¿Proyecto en GitHub?}
+    B -->|Sí| C[GHCR]
+    B -->|No| D{¿Empresa Red Hat/OpenShift?}
+    
+    D -->|Sí| E[Quay.io]
+    D -->|No| F{¿Infraestructura cloud?}
+    
+    F -->|AWS| G[AWS ECR]
+    F -->|Azure| H[Azure ACR]
+    F -->|GCP| I[GCP AR]
+    F -->|On-premise| J[Harbor autohospedado]
+```
+
+---
+
+## Casos Específicos de Uso 🎯
+
+### Docker Hub sigue siendo relevante para:
+
+- **Imágenes base oficiales** (ubuntu, nginx, node)
+- **Comunidad open source** (mayor ecosistema)
+- **Desarrollo y pruebas** (más rápido para prototipos)
+
+### Cambiar a alternativas cuando:
+
+- **Límites de descarga** de Docker Hub te afectan
+- **Seguridad empresarial** es crítica
+- **Integración cloud** específica es necesaria
+- **Costos** de Docker Hub Pro son prohibitivos
+
+---
+
+## Tendencias y Futuro 🔮
+
+### Lo que estamos viendo:
+
+1. **Kubernetes + Containerd** = Nuevo estándar
+2. **Podman** ganando terreno en enterprise
+3. **Registros cloud** dominando en empresas
+4. **Autohospedado** para casos específicos
+
+**Recomendación pragmática:**
+
+- **Desarrollo local**: Docker o Podman según preferencia
+- **Producción cloud**: Usar el registro nativo del provider
+- **Empresa on-premise**: Evaluar Harbor vs Quay.io
+
+---
+
+## Resumen Ejecutivo 📋
+
+### Estado de madurez:
+
+| Tecnología | Madurez Producción | Recomendación |
+|------------|-------------------|---------------|
+| **Podman** | ✅ Alta | Sí, especialmente para Red Hat shops |
+| **Containerd** | ✅ Muy Alta | Sí, estándar en Kubernetes |
+| **GHCR** | ✅ Alta | Sí, para proyectos GitHub |
+| **ECR/ACR/GCR** | ✅ Muy Alta | Sí, según cloud provider |
+
+**Conclusión:** El ecosistema está maduro y diversificado. ¡Elige según tu caso de uso específico! 🎯
+
+---
+
+## Anatomía de un Dockerfile 📝
+
+### El "libro de instrucciones" de tu imagen
+
+```dockerfile
+# Sintaxis básica - Piensa en capas de cebolla 🧅
+FROM ubuntu:20.04          # Capa base
+LABEL maintainer="tu@email.com"
+WORKDIR /app               # Directorio de trabajo
+COPY . .                   # Copiar archivos
+RUN apt-get update && apt-get install -y python3
+CMD ["python3", "app.py"]  # Comando por defecto
+```
+
+## Consejos para seleccionar imágenes Docker
+
+- Verifica la cantidad de descargas para evaluar la popularidad.
+- Revisa las etiquetas (tags) para elegir la versión adecuada.
+- Prefiere imágenes oficiales (`OFFICIAL`).
+
+**Ejemplo práctico:** Buscar la imagen oficial de `nginx`:
+```bash
+docker pull nginx:latest
+```
+
+> Nota: No siempre `latest` es la mejor opción. Ya que cambia con frecuencia.
+
+## Anatomía de un Dockerfile 1
+
+### ¿Qué es un Dockerfile?
+
+Es un archivo de texto que contiene instrucciones para construir una imagen personalizada.
+
+### Estructura básica:
+
+```Dockerfile
+# Base image
+FROM ubuntu:20.04
+# Autor
+LABEL maintainer="tu_nombre@example.com"
+# Instalar dependencias
+RUN apt-get update && apt-get install -y python3
+# Copiar archivos
+COPY app.py /app/
+# Definir directorio de trabajo
+WORKDIR /app
+# Puerto expuesto
+EXPOSE 8080
+# Comando por defecto
+CMD ["python3", "app.py"]
+```
+
+## Anatomía de un Dockerfile 2
+
+> **Anatomía de un Dockerfile**
+```{mermaid}
+graph TD
+    A[Dockerfile] --> B[Base Image]
+    A --> C[Instrucciones RUN]
+    A --> D[COPY/ADD]
+    A --> E[EXPOSE]
+    A --> F[CMD/ENTRYPOINT]
+```
+
+---
+
+## Las 3 R's: RUN, CMD, ENTRYPOINT
+
+### ¡No te confundas! Son como diferentes tipos de chefs 👨‍🍳
+
+```{mermaid}
+graph TD
+    A[Instrucciones de Ejecución] --> B[RUN]
+    A --> C[CMD]
+    A --> D[ENTRYPOINT]
+    
+    B --> B1[Construcción]
+    C --> C1[Valor por defecto]
+    D --> D1[Ejecutable fijo]
+```
+
+---
+
+## RUN: El Chef Constructor 👷‍♂️
+
+### Se ejecuta durante la CONSTRUCCIÓN de la imagen
+
+```dockerfile
+# Ejemplos de RUN
+RUN apt-get update && apt-get install -y curl
+RUN npm install
+RUN pip install -r requirements.txt
+```
+
+\
+
+**Características clave:**
+
+- ✅ Se ejecuta al construir la imagen (`docker build`)
+- ❌ No se ejecuta al iniciar el contenedor
+- 📍 Cada RUN crea una nueva capa
+
+---
+
+## CMD: El Comando por Defecto 🎯
+
+### Es lo que se ejecuta al INICIAR el contenedor
+
+```dockerfile
+# Diferentes formas de usar CMD
+CMD ["nginx", "-g", "daemon off;"]    # Forma exec (recomendada)
+CMD nginx -g "daemon off;"           # Forma shell
+CMD ["python3", "app.py"]
+```
+
+\
+
+**¡Importante!** CMD puede ser SOBREESCRITO al ejecutar el contenedor:
+```bash
+docker run mi-imagen echo "Hola"  # ¡Sobreescribe el CMD!
+```
+
+## El Mecanismo de Sobrescritura de CMD
+
+### Piensa en CMD como una "sugerencia por defecto"
+
+```{mermaid}
+graph LR
+    A[docker run mi-imagen echo &quot;Hola&quot;] --> B[Docker Engine]
+    B --> C{"¿Tiene argumentos
+    después de la imagen?"}
+    C -->|Sí| D[Reemplaza CMD completo]
+    C -->|No| E[Usa CMD del Dockerfile]
+    
+    D --> F[Ejecuta: echo &quot;Hola&quot;]
+    E --> G[Ejecuta CMD original]
+```
+
+**Lo que Docker hace internamente:**
+
+1. ✅ Carga la imagen `mi-imagen`
+2. ✅ Ve que hay argumentos después del nombre: `echo "Hola"`
+
+## ¿Qué pasa realmente bajo el capó? 🔧
+
+### Ejemplo práctico:
+
+**Dockerfile:**
+```dockerfile
+FROM ubuntu:20.04
+CMD ["python3", "app.py"]  # Comando por defecto
+```
+
+**Al ejecutar:**
+```bash
+docker run mi-imagen echo "Hola"
+```
+
+**Lo que Docker hace internamente:**
+
+3. ✅ **Descarta completamente** el `CMD ["python3", "app.py"]`
+4. ✅ Ejecuta `echo "Hola"` en su lugar
+
+
+---
+
+## ENTRYPOINT: El Ejecutable Principal 🚀
+
+### Define el programa PRINCIPAL del contenedor
+
+```dockerfile
+# ENTRYPOINT + CMD trabajando juntos
+ENTRYPOINT ["nginx"]
+CMD ["-g", "daemon off;"]
+```
+
+**Comportamiento especial:**
+
+- El CMD se convierte en argumentos del ENTRYPOINT
+- Difícil de sobrescribir (requiere `--entrypoint`)
+
+```bash
+# Ejemplo práctico
+docker run mi-nginx -t  # Ejecuta: nginx -t
+```
+
+## ¿Y qué pasa con ENTRYPOINT? 🤔
+
+### Aquí la magia es diferente:
+
+```dockerfile
+ENTRYPOINT ["nginx"]
+CMD ["-g", "daemon off;"]
+```
+
+**Al ejecutar:**
+```bash
+docker run mi-nginx -t
+```
+
+**Resultado:** `nginx -t` (¡CMD se convierte en argumentos!)
+
+```{mermaid}
+graph LR
+    A[ENTRYPOINT] --> C[nginx]
+    B[CMD o argumentos] --> D[Argumentos]
+    C --> E[Comando final]
+    D --> E
+```
+
+
+---
+
+## RUN vs CMD vs ENTRYPOINT: Resumen
+
+\
+
+| Instrucción | ¿Cuándo se ejecuta? | ¿Se puede sobrescribir? | Propósito |
+|-------------|---------------------|-----------|------------------------|
+| **RUN**     | Durante construcción | No | Instalar paquetes, configurar |
+| **CMD**     | Al iniciar contenedor | Sí fácilmente | Comando por defecto |
+| **ENTRYPOINT** | Al iniciar contenedor | Sí (con flag) | Ejecutable principal |
+
+---
+
+## Casos de Uso Prácticos 🎯
+
+### ¿Cuándo usar esta funcionalidad?
+
+**1. Debugging y troubleshooting:**
+```bash
+# En lugar del CMD normal, ejecuta un shell
+docker run -it mi-app /bin/bash
+# Ver variables de entorno
+docker run mi-app env
+```
+
+**2. Testing diferentes configuraciones:**
+```bash
+# Probar con diferentes parámetros
+docker run mi-app --help
+docker run mi-app --version
+```
+
+**3. Comandos administrativos:**
+```bash
+# Ejecutar tareas de mantenimiento
+docker run mi-database backup-script.sh
+```
+
+---
+
+## Resumen de Comportamientos 🎪
+
+\
+
+| Escenario | Comando | Resultado |
+|-----------|---------|-----------|
+| **Solo CMD** | `docker run app` | Ejecuta CMD del Dockerfile |
+| **CMD + args** | `docker run app echo "Hola"` | Ejecuta `echo "Hola"` |
+| **ENTRYPOINT + CMD** | `docker run nginx` | Ejecuta `nginx -g "daemon off;"` |
+| **ENTRYPOINT + args** | `docker run nginx -t` | Ejecuta `nginx -t` |
+
+
+## Mejoras: Optimización de Capas (Caching) ⚡
+
+### ¿Qué es el caching?
+
+- Docker guarda cada instrucción como una capa.
+- Las capas anteriores se reutilizan si no cambian.
+
+### El arte de hacer builds rápidos
+
+**Problema común:**
+```dockerfile
+FROM ubuntu
+COPY . /app          # Si cambias un archivo...
+RUN apt-get update && apt-get install -y python3  # ¡TODO se re-ejecuta!
+```
+
+**Solución inteligente:**
+```dockerfile
+FROM ubuntu
+RUN apt-get update && apt-get install -y python3  # Capa que cambia poco
+COPY . /app          # Capa que cambia frecuentemente
+```
+
+---
+
+## Estrategia de ordenamiento de capas
+
+### Consejos:
+1. Coloca instrucciones que cambian menos al principio.
+2. Agrupa comandos con `&&` para reducir capas.
+
+### Del menos cambiante al más cambiante
+
+```{mermaid}
+graph LR
+    A[COPY código app] --> B[Instalar dependencias]
+    B --> C[Configurar sistema]
+    C --> D[Imagen base]
+    
+    style A fill:#f9f,stroke:#333
+    style B fill:#ccf,stroke:#333
+    style C fill:#cfc,stroke:#333
+    style D fill:#ffc,stroke:#333
+```
+
+**Regla de oro:** Coloca lo que MÁS cambia al FINAL del Dockerfile.
+
+---
+
+## Ejecutar contenedores como usuario no-root por seguridad
+
+### ¿Por qué evitar root?
+
+- Ejecutar como root puede exponer tu sistema a riesgos de seguridad.
+
+### Solución:
+
+1. Crea un usuario dentro del Dockerfile.
+2. Cambia al usuario antes de ejecutar el comando principal.
+
+## Seguridad: No ejecutes como root! 🛡️
+
+### El principio de mínimo privilegio
+
+**❌ MAL:**
+```dockerfile
+FROM ubuntu
+COPY . /app
+RUN chmod 777 /app    # ¡Peligro!
+CMD ["python3", "app.py"]  # Se ejecuta como root
+```
+
+**✅ BIEN:**
+```dockerfile
+FROM ubuntu
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+USER appuser
+COPY --chown=appuser:appuser . /app
+CMD ["python3", "app.py"]
+```
+
+---
+
+## Uso de Multi-stage builds
+
+### ¿Qué son los Multi-stage builds?
+
+- Permiten dividir el proceso de construcción en varias etapas para reducir el tamaño final de la imagen.
+
+### Ventajas:
+
+- Imágenes más ligeras.
+- Mejor seguridad (no incluyen herramientas innecesarias).
+
+## Multi-stage Builds: Imágenes ligeras 🎯
+
+### Construye en un ambiente, ejecuta en otro
+
+```dockerfile
+# Stage 1: Construcción (puede ser pesado)
+FROM node:16 AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: Producción (solo lo necesario)
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+```
+
+## Ejemplo: Multi-stage builds
+
+```Dockerfile
+# Etapa 1: Construcción
+FROM python:3.9 AS builder
+COPY . /app
+RUN pip install --target=/app -r requirements.txt
+
+# Etapa 2: Producción
+FROM python:3.9-slim
+COPY --from=builder /app /app
+CMD ["python3", "/app/app.py"]
+```
+```{mermaid}
+graph TD
+    A[Etapa 1: Construcción] --> B[Compila y genera artefactos]
+    C[Etapa 2: Producción] --> D[Utiliza solo los artefactos necesarios]
+```
+
+---
+
+## Beneficios de Multi-stage Builds
+
+```{mermaid}
+graph LR
+    A[Stage 1: Build] --> B[Herramientas completas]
+    C[Stage 2: Runtime] --> D[Solo lo esencial]
+    
+    B --> B1[Python, Node.js, compiladores]
+    B --> B2[Dependencias de desarrollo]
+    D --> D1[Solo archivos estáticos]
+    D --> D2[Runtime mínimo]
+```
+
+**Resultado:** Imagen final más pequeña y segura 🎉
+
+## Herramientas para Escribir Dockerfiles: Tu Kit de Supervivencia
+
+### No estás solo en la creación de Dockerfiles
+
+```{mermaid}
+graph TB
+    A[Herramientas Dockerfile] --> B[Linters]
+    A --> C[Editores Inteligentes]
+    A --> D[Generadores]
+    A --> E[Analizadores]
+    
+    B --> B1[hadolint]
+    B --> B2[dockerfile-utils]
+    
+    C --> C1[VS Code]
+    C --> C2[IntelliJ]
+    C --> C3[Docker Extension]
+    
+    D --> D1[Dockerfile Generator]
+    D --> D2[fromnode]
+    
+    E --> E1[dive]
+    E --> E2[docker-slim]
+```
+
+---
+
+## Hadolint: El Linter que Te Salva de Errores 🚨
+
+### ¡Como un corrector ortográfico para Dockerfiles!
+
+**¿Qué hace?**
+
+- Detecta malas prácticas
+- Sugiere optimizaciones
+- Encuentra vulnerabilidades potenciales
+
+**Instalación y uso:**
+```bash
+# Instalar
+scoop install hadolint # Windows
+brew install hadolint  # macOS
+sudo apt install hadolint # Linux
+# o usar container
+docker run --rm -i hadolint/hadolint < Dockerfile
+
+# Usar
+hadolint Dockerfile
+```
+
+## Ejemplo de errores que detecta Hadolint
+
+```dockerfile
+# ❌ MAL - Hadolint te avisará
+FROM ubuntu
+RUN apt-get update  # DL3008: Siempre combine apt-get update con install
+RUN apt-get install -y curl
+
+# ✅ BIEN - Hadolint aprobará
+RUN apt-get update && apt-get install -y curl
+```
+
+---
+
+## Visual Studio Code: Tu Editor con Superpoderes 💻
+
+### Extensiones esenciales para Docker:
+
+**Docker Extension (Microsoft):**
+
+- Autocompletado de instrucciones
+- Sintaxis highlighting
+- Comandos integrados
+- Debugging de contenedores
+
+## vsCode Dockerfile Extension
+
+**Code completión en acción:**
+
+```dockerfile
+FROM node:16-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+# ↑ Te sugiere --only=production automáticamente
+```
+
+**Snippets comunes:**
+
+- `dockerfile-from` → `FROM ...`
+- `dockerfile-run` → `RUN ...`
+- `dockerfile-copy` → `COPY ...`
+
+---
+
+## Dive: Analiza tus Imágenes como un Detective 🔍
+
+### ¿Qué hay dentro de tu imagen?
+
+**Dive te permite:**
+
+- Ver cada capa de tu imagen
+- Analizar el tamaño de cada capa
+- Encontrar archivos innecesarios
+- Calcular eficiencia de la imagen
+
+## Dive en Acción
+
+```bash
+# Instalar
+brew install dive
+
+# Analizar imagen
+dive mi-imagen:latest
+```
+
+**Salida ejemplo:**
+```
+Layer 1: 120MB - Instalación de paquetes
+Layer 2: 5MB   - Código de la app
+Layer 3: 300MB ← ¡ARCHIVOS TEMPORALES INNECESARIOS!
+```
+
+---
+
+## Dockerignore: El Guardián de tu Build 🛡️
+
+### ¿Por qué necesitas .dockerignore?
+
+**Problema sin .dockerignore:**
+```bash
+# Contexto de build incluye TODO
+docker build .  # ← Incluye node_modules, logs, etc.
+```
+
+**Solución con .dockerignore:**
+```bash
+# Contexto de build solo incluye lo necesario
+docker build .  # ← Ignora archivos especificados
+```
+
+```{mermaid}
+graph LR
+    A[Directorio Proyecto] --> B{docker build}
+    B --> C[Sin .dockerignore: Envía TODO]
+    B --> D[Con .dockerignore: Filtra archivos]
+    
+    C --> C1[Lento, capas grandes]
+    D --> D1[Rápido, capas optimizadas]
+```
+
+---
+
+## Anatomía de un .dockerignore 📝
+
+### Sintaxis similar a .gitignore
+
+**.dockerignore ejemplo:**
+```dockerignore
+# Ignorar node_modules (se instalan en build)
+node_modules/
+npm-debug.log
+
+# Ignorar logs y temporales
+*.log
+tmp/
+temp/
+
+# Ignorar archivos de desarrollo
+.git/
+.gitignore
+README.md
+.dockerignore
+
+# Ignorar archivos de entorno (pueden tener secrets)
+.env
+.env.local
+```
+
+---
+
+## ¿Por qué .dockerignore es CRÍTICO? ⚠️
+
+### 3 razones principales:
+
+**1. Seguridad 🔒**
+```dockerignore
+# Evita que secrets lleguen a la imagen
+.env
+.aws/
+id_rsa*
+*.pem
+```
+
+**2. Performance 🚀**
+```dockerignore
+# Evita enviar gigabytes innecesarios
+node_modules/    # 500MB que se reinstalarán anyway
+.git/           # Historial completo
+```
+
+**3. Tamaño de imagen 📦**
+```dockerignore
+# Archivos que inflan la imagen sin beneficio
+*.map           # Source maps de producción
+test/           # Tests que no se ejecutan en prod
+```
+
+---
+
+## Errores Comunes con .dockerignore ❌
+
+### ¡Cuidado con estos patrones!
+
+**Problema 1: Ignorar archivos necesarios**
+```dockerignore
+# ❌ MAL - Ignora TODOS los .json incluyendo package.json!
+*.json
+
+# ✅ BIEN - Específico
+*.config.json
+tsconfig.json
+```
+
+**Problema 2: Patrones incorrectos**
+```dockerignore
+# ❌ MAL - No funciona como esperas
+src/test/      # Solo ignora en raíz, no en subdirectorios
+
+# ✅ BIEN - Patrón correcto
+**/test/
+**/*.test.js
+```
+
+---
+
+## Caso Práctico: Antes y Después 🎯
+
+### Sin .dockerignore:
+```bash
+# Build lento y pesado
+Sending build context to Docker daemon: 1.2GB
+```
+
+\
+
+### Con .dockerignore optimizado:
+```bash
+# Build rápido y liviano
+Sending build context to Docker daemon: 15.6MB
+```
+
+## `.dockerignore` efectivo
+
+```dockerignore
+# Dependencias
+node_modules/
+vendor/
+
+# Control de versiones
+.git/
+.svn/
+
+# Logs y temporales
+*.log
+tmp/
+.cache/
+
+# Entorno y configuración local
+.env
+.idea/
+.vscode/
+
+# Documentación
+README.md
+docs/
+```
+
+---
+
+## Herramientas para .dockerignore 🛠️
+
+### ¿Cómo validar que funciona?
+
+**dockerignore CLI:**
+```bash
+# Ver qué archivos se ignorarían
+npx dockerignore check
+
+# Generar .dockerignore para tu proyecto
+npx dockerignore generate node,git,env
+```
+
+**Verificación manual:**
+```bash
+# Ver contexto que se enviaría
+docker build --no-cache --progress=plain .
+```
+
+---
+
+## Integración con CI/CD 🔄
+
+### .dockerignore en tus pipelines:
+
+**GitHub Actions ejemplo:**
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Build Docker image
+        run: |
+          # .dockerignore asegura que solo se envíe lo necesario
+          docker build -t mi-app .
+```
+
+---
+
+## Buenas Prácticas Combinadas 🏆
+
+### Dockerfile + .dockerignore = Éxito garantizado
+
+**Estructura ideal:**
+```
+proyecto/
+├── .dockerignore          # ← Filtra archivos
+├── Dockerfile             # ← Instrucciones build
+├── src/                   # ← Solo esto va al build
+├── package.json           # ← Necesario para npm install
+└── node_modules/          # ← IGNORADO (se recrea en build)
+```
+
+**Flujo optimizado:**
+```{mermaid}
+graph LR
+    A[Source Code] --> B[.dockerignore]
+    B --> C[Build Context Filtrado]
+    C --> D[Dockerfile]
+    D --> E[Imagen Optimizada]
+```
+
+---
+
+## Resumen Ejecutivo 📋
+
+### Herramientas imprescindibles:
+
+| Herramienta | Propósito | ¿Cuándo usar? |
+|-------------|-----------|---------------|
+| **hadolint** | Linter Dockerfile | Siempre, en CI/CD |
+| **VS Code Docker** | Desarrollo | Durante escritura de Dockerfiles |
+| **dive** | Análisis imágenes | Optimización de tamaño |
+| **.dockerignore** | Filtro archivos | TODO proyecto Docker |
+
+\
+
+### .dockerignore es NO negociable porque:
+- ✅ Mejora seguridad
+- ✅ Acelera builds
+- ✅ Reduce tamaño de imágenes
+- ✅ Previene leaks de información
+
+---
+
+## ¡Tu Dockerfile Perfecto Espera! 🚀
+
+**Con estas herramientas:**
+
+- Escribirás Dockerfiles más seguros y eficientes
+- Detectarás errores antes del build
+- Optimizarás el tamaño de tus imágenes
+- Mantendrás secrets fuera de tus contenedores
+
+---
+
+## Resumen del Módulo 3 🎓
+
+### Lo esencial que debes recordar:
+
+1. **Docker Hub** es tu aliado para encontrar imágenes base
+2. **Dockerfile** es la receta de tu imagen
+3. **RUN** vs **CMD** vs **ENTRYPOINT** tienen propósitos distintos
+4. **Optimiza capas** para builds más rápidos
+5. **Seguridad primero**: no uses root
+6. **Multi-stage** para imágenes de producción optimizadas
+7. **.dockerignore** para optimizar builds
+8. **Herramientas** para editar Dockerfiles
+
+---
+
+## Próximos pasos 🚀
+
+### En el laboratorio practicaremos:
+
+- Crear tu primer Dockerfile desde cero
+- Experimentar con RUN, CMD y ENTRYPOINT
+- Optimizar un Dockerfile existente
+- Implementar multi-stage builds
+
+**¡Preparados para el hands-on!** 💻
+
+# Preguntas y Respuestas ❓
+
+**¿Alguna duda sobre los conceptos de imágenes?**
+
+¡No te quedes con dudas! Este es el fundamento de todo lo que viene después.
+
+
