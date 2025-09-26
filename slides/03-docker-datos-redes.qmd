@@ -15,3 +15,458 @@ html-math-method:
 lang: es
 logo: images/qu4nt-logo.png
 ---
+
+# Almacenamiento y Redes en Docker
+## Almacenamiento persistente y comunicación entre contenedores
+
+---
+
+## ¿Por qué nos importa el almacenamiento?
+
+::: {.columns}
+::: {.column width="50%"}
+**Problema:** Los contenedores son efímeros
+- Por diseño, los contenedores son temporales
+- Cuando un contenedor se elimina, TODO su contenido desaparece
+- ¡Incluyendo bases de datos, archivos de configuración, logs!
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TD
+    A[Contenedor MySQL] --> B[Datos en capa escribible]
+    B --> C[¡Contenedor eliminado!]
+    C --> D[💥 Datos perdidos]
+```
+:::
+:::
+
+**Solución:** Necesitamos almacenamiento PERSISTENTE
+
+---
+
+## El sistema de archivos de Docker
+
+::: {.columns}
+::: {.column width="60%"}
+```mermaid
+graph TB
+    A[Imagen Base] --> B[Capa 1: SO]
+    A --> C[Capa 2: Aplicación]
+    A --> D[Capa 3: Configuración]
+    
+    B --> E[Contenedor]
+    C --> E
+    D --> E
+    
+    E --> F[Capa escribible<br/>Union File System]
+    
+    style F fill:#e1f5fe
+```
+:::
+
+::: {.column width="40%"}
+**Concepto clave:** Capas superpuestas
+- **Capas de solo lectura:** Provenientes de la imagen
+- **Capa escribible:** Única por contenedor
+- **Union File System:** Combina todas las capas
+:::
+:::
+
+---
+
+## Tipos de almacenamiento en Docker
+
+```mermaid
+graph LR
+    A[Almacenamiento Docker] --> B[Bind Mounts]
+    A --> C[Volumes]
+    A --> D[tmpfs mounts]
+    
+    B --> E[Host directamente]
+    C --> F[Gestionado por Docker]
+    D --> G[Memoria RAM]
+    
+    style C fill:#c8e6c9
+```
+
+---
+
+## Volumes: La opción recomendada
+
+::: {.columns}
+::: {.column width="50%"}
+**¿Qué son?**
+- Directorios gestionados por Docker
+- Independientes del ciclo de vida del contenedor
+- Ubicación gestionada por Docker (/var/lib/docker/volumes)
+
+**Ventajas:**
+- Backup y migración fáciles
+- Gestionados mediante CLI de Docker
+- Mejor rendimiento en algunos sistemas
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[Contenedor A] --> C[Volume MySQL]
+    B[Contenedor B] --> C
+    D[Contenedor C] --> C
+    
+    C --> E[Persiste entre contenedores]
+    E --> F[Sobrevive a reinicios]
+```
+:::
+:::
+
+---
+
+## Bind Mounts: Conexión directa
+
+::: {.columns}
+::: {.column width="50%"}
+**¿Qué son?**
+- Montaje de un directorio específico del host
+- El contenedor accede directamente al filesystem del host
+
+**Casos de uso:**
+- Desarrollo (código fuente)
+- Configuraciones específicas del host
+- Cuando necesitas control total
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph LR
+    A[/home/usuario/proyecto] --> B[Contenedor App]
+    C[/etc/config] --> B
+    
+    style A fill:#fff3e0
+    style C fill:#fff3e0
+```
+:::
+:::
+
+**⚠️ Precaución:** Puede causar conflictos de permisos
+
+---
+
+## tmpfs: Almacenamiento en memoria
+
+::: {.columns}
+::: {.column width="60%"}
+**¿Qué son?**
+- Sistema de archivos temporal en memoria RAM
+- Extremadamente rápido
+- Se pierde al reiniciar el contenedor
+
+**Casos de uso:**
+- Archivos temporales sensibles
+- Cachés que no necesitan persistir
+- Información sensible que no debe escribirse en disco
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph TB
+    A[Memoria RAM] --> B[tmpfs mount]
+    B --> C[Contenedor]
+    
+    style A fill:#fce4ec
+```
+:::
+:::
+
+---
+
+## Comparación: ¿Cuándo usar cada uno?
+
+| Tipo | Persistencia | Rendimiento | Caso principal |
+|------|--------------|-------------|----------------|
+| **Volumes** | ✅ Sí | Alto | Producción, bases de datos |
+| **Bind Mounts** | ✅ Sí | Medio | Desarrollo, configuraciones |
+| **tmpfs** | ❌ No | Muy alto | Datos temporales sensibles |
+
+---
+
+## ¿Por qué necesitamos redes en Docker?
+
+::: {.columns}
+::: {.column width="50%"}
+**Problema inicial:**
+- Los contenedores están aislados
+- No pueden comunicarse entre sí por defecto
+- No son accesibles desde el exterior
+
+**Necesitamos:**
+- Comunicación entre contenedores
+- Exponer servicios al mundo exterior
+- Aislamiento de redes diferentes
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph LR
+    A[🌐 Internet] --> B[¿Cómo llego?]
+    C[Contenedor Web] --> D[Contenedor DB]
+    D --> C
+    
+    style B fill:#ffcdd2
+```
+:::
+:::
+
+---
+
+## Arquitectura de red por defecto
+
+```mermaid
+graph TB
+    A[Host Machine] --> B[Docker Engine]
+    B --> C[Docker Daemon]
+    
+    C --> D[docker0 Bridge]
+    D --> E[Contenedor A<br/>172.17.0.2]
+    D --> F[Contenedor B<br/>172.17.0.3]
+    D --> G[Contenedor C<br/>172.17.0.4]
+    
+    A --> H[eth0: 192.168.1.100]
+    
+    style D fill:#e8f5e8
+```
+
+**Bridge por defecto:** Todos los contenedores conectados automáticamente
+
+---
+
+## Tipos de redes en Docker
+
+```mermaid
+graph TB
+    A[Tipos de Red] --> B[Bridge]
+    A --> C[Host]
+    A --> D[None]
+    A --> E[Overlay]
+    
+    B --> F[Aislamiento por defecto]
+    C --> G[Comparte red del host]
+    D --> H[Sin red]
+    E --> I[Multi-host]
+    
+    style B fill:#bbdefb
+```
+
+---
+
+## Bridge Network: El más común
+
+::: {.columns}
+::: {.column width="50%"}
+**Características:**
+- Red privada interna a Docker
+- NAT para comunicación externa
+- DNS automático entre contenedores
+- Aislamiento por defecto
+
+**Como un router virtual:**
+- Cada contenedor tiene IP única
+- Pueden comunicarse entre sí
+- Salida al exterior mediante NAT
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[Bridge Network] --> B[Contenedor Web:80]
+    A --> C[Contenedor DB:3306]
+    A --> D[Contenedor Cache:6379]
+    
+    B --> E[📡 Puerto 8080 expuesto]
+    E --> F[🌐 Internet]
+    
+    style A fill:#e3f2fd
+```
+:::
+:::
+
+---
+
+## Host Network: Máximo rendimiento
+
+::: {.columns}
+::: {.column width="50%"}
+**Características:**
+- El contenedor usa la red del host directamente
+- Sin aislamiento de red
+- Máximo rendimiento (sin NAT)
+
+**Casos de uso:**
+- Alto rendimiento necesario
+- Cuando necesitas usar puertos del host directamente
+- Aplicaciones que manejan su propio aislamiento
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph LR
+    A[Contenedor] --> B[eth0 del Host]
+    B --> C[🌐 Internet]
+    
+    style A fill:#f3e5f5
+```
+:::
+:::
+
+**⚠️ Precaución:** Menos seguridad - el contenedor ve toda la red del host
+
+---
+
+## Comunicación entre contenedores
+
+::: {.columns}
+::: {.column width="50%"}
+**Problema tradicional:**
+- ¿Cómo encuentra un contenedor a otro?
+- Las IPs cambian
+- Configuración manual complicada
+
+**Solución Docker:**
+- DNS automático
+- Nombres de contenedor como hostname
+- Redes personalizadas
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph LR
+    A[webapp] --> B[Resuelve: database]
+    B --> C[DNS Docker]
+    C --> D[172.17.0.3]
+    D --> E[contenedor-db]
+    
+    style C fill:#fff9c4
+```
+:::
+:::
+
+---
+
+## Escenario práctico: Aplicación web + Base de datos
+
+```mermaid
+graph TB
+    A[Usuario] --> B[Puerto 80:8080]
+    B --> C[Contenedor Web]
+    C --> D[Red personalizada: app-network]
+    D --> E[Contenedor Database]
+    
+    F[Volume DB] --> E
+    G[Bind Mount<br/>código fuente] --> C
+    
+    style D fill:#c8e6c9
+    style F fill:#e1f5fe
+    style G fill:#fff3e0
+```
+
+---
+
+## Patrones comunes de comunicación
+
+::: {.columns}
+::: {.column width="50%"}
+**1. Web → API → Database**
+```mermaid
+graph LR
+    A[Frontend] --> B[Backend API]
+    B --> C[Database]
+```
+**2. Microservicios**
+```mermaid
+graph TB
+    A[API Gateway] --> B[Servicio Users]
+    A --> C[Servicio Orders]
+    A --> D[Servicio Payments]
+```
+:::
+
+::: {.column width="50%"}
+**3. Publicación de puertos**
+- Exponer servicios específicos
+- Mapeo puerto contenedor → puerto host
+
+**4. Comunicación entre hosts**
+- Docker Swarm mode
+- Overlay networks
+:::
+:::
+
+---
+
+## Buenas prácticas de redes
+
+**Seguridad:**
+- Usa redes personalizadas para aislar grupos de contenedores
+- No uses la red "host" a menos que sea necesario
+- Limita la exposición de puertos
+
+**Organización:**
+- Una red por aplicación/microservicio
+- Nombres descriptivos para redes
+- Documenta las dependencias entre servicios
+
+---
+
+## Resumen: Almacenamiento
+
+| Concepto | Propósito | Cuándo usar |
+|----------|-----------|-------------|
+| **Volumes** | Persistencia gestionada | Producción, datos críticos |
+| **Bind Mounts** | Desarrollo, configuración | Desarrollo, configs específicas |
+| **tmpfs** | Datos temporales | Cachés, datos sensibles |
+
+---
+
+## Resumen: Redes
+
+| Tipo de Red | Aislamiento | Caso de uso |
+|-------------|-------------|-------------|
+| **Bridge** | Aislamiento por defecto | La mayoría de casos |
+| **Host** | Sin aislamiento | Alto rendimiento |
+| **None** | Completo | Contenedores sin red |
+| **Overlay** | Multi-host | Docker Swarm, clusters |
+
+---
+
+## Patrón final: Aplicación completa
+
+```mermaid
+graph TB
+    A[🌐 Internet] --> B[Load Balancer]
+    B --> C[Web Server 1]
+    B --> D[Web Server 2]
+    
+    C --> E[App Network]
+    D --> E
+    E --> F[Database]
+    E --> G[Cache]
+    E --> H[Message Queue]
+    
+    I[Volume DB] --> F
+    J[Volume Queue] --> H
+    
+    style E fill:#f3e5f5
+```
+
+---
+
+## ¡Preparados para el laboratorio!
+
+**Lo que hemos cubierto:**
+- Fundamentos de almacenamiento persistente
+- Tipos de volúmenes y cuándo usar cada uno
+- Arquitectura de redes en Docker
+- Comunicación entre contenedores
+- Patrones comunes y mejores prácticas
+
+**Próximamente:** ¡Manos a la obra con ejercicios prácticos!
