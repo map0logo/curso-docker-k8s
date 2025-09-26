@@ -26,9 +26,11 @@ logo: images/qu4nt-logo.png
 ::: {.columns}
 ::: {.column width="50%"}
 **Problema:** Los contenedores son efímeros
+
 - Por diseño, los contenedores son temporales
 - Cuando un contenedor se elimina, TODO su contenido desaparece
 - ¡Incluyendo bases de datos, archivos de configuración, logs!
+
 :::
 
 ::: {.column width="50%"}
@@ -41,7 +43,37 @@ graph TD
 :::
 :::
 
+- Todo lo que guardas dentro del contenedor **desaparece** al detenerlo.
+- ¡Imagina perder la base de datos cada vez que reinicias tu app!
+
+> 🤯 **¡No! Necesitamos un lugar donde los datos vivan más allá del contenedor.**
+
+
 **Solución:** Necesitamos almacenamiento PERSISTENTE
+
+
+> 💡 **¡Tu aplicación no es solo código! Es código + datos + comunicación.**
+
+---
+
+## Solución: Almacenamiento persistente
+
+## Docker ofrece **tres formas principales** de guardar datos fuera del contenedor:
+
+1. **Bind mounts**  
+   → Monta un directorio o archivo del **host** dentro del contenedor.
+
+2. **Volumes**  
+   → Almacenamiento gestionado por Docker (recomendado para producción).
+
+3. **tmpfs mounts**  
+   → Almacenamiento en memoria (no persistente, útil para datos temporales).
+
+🧠 **Piensa en ello como elegir entre:**
+
+- Guardar en tu casa (bind mount)
+- Guardar en una caja fuerte del banco (volume)
+- Guardar en una pizarra (tmpfs)
 
 ---
 
@@ -147,6 +179,8 @@ graph LR
 ```
 :::
 :::
+
+**📌 Ideal para desarrollo**, cuando quieres editar archivos en tiempo real.
 
 **⚠️ Precaución:** Puede causar conflictos de permisos
 
@@ -459,6 +493,88 @@ graph TB
 ```
 
 ---
+
+## Creando una red personalizada
+
+```bash
+docker network create mi-red
+```
+
+Luego, al crear contenedores:
+
+```bash
+docker run -d --network=mi-red --name=db mysql
+docker run -d --network=mi-red --name=web nginx
+```
+
+Ahora, desde `web`, puedes hacer:
+
+```bash
+ping db  # ¡Funciona!
+```
+
+> ✨ **Docker resuelve `db` → IP automáticamente. ¡Magia de DNS!**
+
+---
+
+## Compartiendo datos entre contenedores
+
+¿Y si dos contenedores necesitan los **mismos archivos**?
+
+### Opción 1: Usar un **volume compartido**
+
+```mermaid
+graph LR
+  Volume[(datos-compartidos)] --> Contenedor1
+  Volume --> Contenedor2
+```
+
+Ambos montan el mismo volumen → ven los mismos archivos.
+
+### Opción 2: Usar un **contenedor de datos** (menos común hoy)
+
+> 💡 **El volumen compartido es la forma moderna y limpia.**
+
+---
+
+## Buenas prácticas que debes recordar
+
+✅ **Usa volumes para datos persistentes en producción**  
+✅ **Crea redes personalizadas para grupos de contenedores**  
+✅ **Nunca almacenes datos críticos en el filesystem del contenedor**  
+✅ **Nombra tus contenedores y redes para hacer todo más legible**
+
+> 🧩 **Docker no es solo "correr una imagen". Es orquestar un ecosistema.**
+
+---
+
+## Resumen visual
+
+```mermaid
+graph LR
+  Host -->|Bind Mount| Container1
+  DockerEngine -->|Volume| Container2
+  DockerEngine -->|Volume| Container3
+  Network[(mi-red)] --> Container2
+  Network --> Container3
+  Container2 <-->|Se comunican por nombre| Container3
+```
+
+- **Almacenamiento**: fuera del contenedor → persistencia.
+- **Red**: red personalizada → comunicación fácil y segura.
+
+---
+
+## ¿Qué sigue?
+
+Ahora que entiendes los **conceptos**,  
+¡estarás listo para el laboratorio práctico!
+
+> 🚀 **Recuerda**:  
+> - Los datos viven en **volumes**  
+> - Los contenedores se hablan en **redes**  
+> - Tú eres el arquitecto de este mundo efímero... ¡pero con memoria!
+
 
 ## ¡Preparados para el laboratorio!
 
