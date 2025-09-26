@@ -208,5 +208,5 @@ __marimo__/
 
 
 # Quarto render files
-slides/*_files/
-slides/*.html
+**_files/
+**.html
