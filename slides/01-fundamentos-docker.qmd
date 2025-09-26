@@ -14,4 +14,1016 @@ html-math-method:
   url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 lang: es
 logo: images/qu4nt-logo.png
+lightbox: true
+
 ---
+
+# Módulo 1: Introducción a Docker
+
+## ¿Qué es Docker? (Y por qué deberías dejar de sufrir)
+
+- Imagina que tienes una app genial... pero solo funciona *en tu máquina*.
+- Le dices a un colega: “¡Clónalo y ejecútalo!”... y te responde: “No funciona 😭”.
+- ¿Por qué? Porque **dependencias, versiones, librerías, SO, etc.** están diferentes.
+
+🎯 Docker resuelve esto: **empaqueta tu app + todo lo que necesita** en un contenedor que funciona *igual en cualquier lado*.
+
+
+## ¿Qué problema resuelve?
+
+### El problema del "en mi máquina funciona"
+
+:::: {.columns}
+::: {.column}
+**Expectativa**
+
+```{mermaid}
+graph TD
+    A[Desarrollador] --> B[Código que funciona]
+    B --> C[Entorno de desarrollo]
+    C --> D[¡Funciona!]
+```
+:::
+
+::: {.column}
+**Realidad**
+
+- Diferentes sistemas operativos
+- Diferentes versiones de librerías
+- Configuraciones inconsistentes
+- Dependencias conflictivas
+
+```{mermaid}
+graph TD
+    E[Dev 1: Ubuntu] --> F[Versiones <br> Configuraciones <br> Dependencias <br> 🤦‍♂️😞]
+    G[Dev 2: Windows] --> F
+    H[Producción: CentOS] --> F
+```
+:::
+
+:::
+
+
+## Contenedor: definición técnica
+
+**Un contenedor Docker es una instancia ejecutable de una imagen Docker**
+
+Piensa en esta relación:
+
+```{mermaid}
+graph LR
+    A[Clase en POO] --> B[Imagen Docker]
+    C[Objeto instanciado] --> D[Contenedor Docker]
+    
+    B --> E[Plantilla estática]
+    D --> F[Ejecución dinámica]
+```
+
+## La solución: Docker al rescate
+
+**Docker es una plataforma para desarrollar, enviar y ejecutar aplicaciones en contenedores**
+
+Piensa en los contenedores como...
+
+- **Cápsulas** que empaquetan tu aplicación
+- **Cápsulas del tiempo** que preservan el entorno
+- **Cápsulas espaciales** que funcionan en cualquier lugar
+
+
+## ¿Qué contiene realmente un contenedor?
+
+### El "paquete completo" de tu aplicación
+
+```{mermaid}
+graph TB
+    A[Contenedor Docker] --> B[Código de la aplicación]
+    A --> C[Dependencias y librerías]
+    A --> D[Archivos de configuración]
+    A --> E[Variables de entorno]
+    A --> F[Runtime específico]
+```
+
+```{mermaid}   
+graph TB 
+    G[Sistema de archivos] --> H[Capa de escritura]
+    I[Red] --> J[Network namespace]
+    K[Procesos] --> L[Aislamiento de procesos]
+```
+
+## Máquinas Virtuales vs. Contenedores
+
+### La vieja escuela: Máquinas Virtuales
+
+```{mermaid}
+graph TB
+    A[Aplicación 1] --> B[Sistema Operativo Invitado 1]
+    C[Aplicación 2] --> D[Sistema Operativo Invitado 2]
+    E[Aplicación 3] --> F[Sistema Operativo Invitado 3]
+    
+    B --> G[Hypervisor]
+    D --> G
+    F --> G
+    G --> H[Sistema Operativo Anfitrión]
+    H --> I[Hardware]
+```
+
+## Características de las VMs:
+
+- ✅ Aislamiento completo
+- ✅ Compatibilidad total
+- ❌ Mucho consumo de recursos
+- ❌ Tiempos de inicio lentos
+- ❌ Gran overhead
+
+## La nueva era: Contenedores
+
+```{mermaid}
+graph TB
+    A[Aplicación 1] --> B[Bins/Libs]
+    C[Aplicación 2] --> D[Bins/Libs]
+    E[Aplicación 3] --> F[Bins/Libs]
+    
+    B --> G[Docker Engine]
+    D --> G
+    F --> G
+    G --> H[Sistema Operativo Anfitrión]
+    H --> I[Hardware]
+```
+# Características clave de los contenedores
+
+## 1. Aislamiento ligero
+
+**No es una máquina virtual completa**, pero sí tiene:
+
+- ✅ **Namespaces:** Aislamiento de procesos, red, archivos
+- ✅ **Control groups:** Límites de recursos (CPU, memoria)
+- ✅ **Sistema de archivos:** Capa de escritura propia
+
+## 2. Eficiencia de recursos
+
+**Comparte el kernel del sistema operativo anfitrión**
+
+```{mermaid}
+graph TD
+    A[App Node.js] --> B[Contenedor 1]
+    C[App Python] --> D[Contenedor 2]
+    E[Base de datos] --> F[Contenedor 3]
+    
+    B --> G[Kernel Linux]
+    D --> G
+    F --> G
+    G --> H[Hardware]
+```
+
+## 3. Portabilidad total
+
+**"Write once, run anywhere"**
+
+- ✅ Mismo contenedor en desarrollo
+- ✅ Mismo contenedor en testing  
+- ✅ Mismo contenedor en producción
+
+## El ciclo de vida de un contenedor
+
+```{mermaid}
+graph LR
+    A[Imagen] --> B[Created]
+    B --> C[Running]
+    C --> D[Paused]
+    D --> C
+    C --> E[Stopped]
+    E --> C
+    E --> F[Deleted]
+```
+### Estados de un contenedor:
+
+1. **Created:** Configurado pero no ejecutándose
+2. **Running:** En ejecución activa
+3. **Paused:** Ejecución suspendida temporalmente
+4. **Stopped:** Proceso terminado pero configuración guardada
+5. **Deleted:** Eliminado completamente
+
+---
+
+## Comparación directa: VM vs Contenedor
+
+### Analogía del edificio
+
+**Máquina Virtual = Casa independiente**
+
+- Tiene sus propios cimientos (SO completo)
+- Muy segura pero costosa de construir
+- Mucho espacio "desperdiciado"
+
+**Contenedor = Apartamento**
+
+- Comparte cimientos con otros (SO anfitrión)
+- Eficiente en espacio y recursos
+- Aislado pero compartiendo infraestructura
+
+## Tabla comparativa
+
+| Aspecto | Máquina Virtual | Contenedor |
+|---------|----------------|------------|
+| Tamaño | GBs | MBs |
+| Tiempo de inicio | Minutos | Segundos |
+| Rendimiento | 10-20% overhead | Casi nativo |
+| Aislamiento | Fuerte | Ligero |
+| Portabilidad | Limitada | Excelente |
+
+---
+
+## Arquitectura de Docker
+
+### Los tres pilares fundamentales
+
+1. **Cliente Docker**:
+
+2. **Docker Daemon**:
+
+3. **Registros (Docker Hub, Docker Registry)**:
+
+```{mermaid}
+graph LR
+    A[ **Cliente Docker**] -->|ordena| B[**Demonio Docker**]
+    B -->|guarda/lee| C[**Registro Docker**]
+    C -->|descarga imágenes| B
+    B -->|crea contenedores| D[**OS anfitrión**]
+
+    style A fill:#ffe599,stroke:#333
+    style B fill:#b4a7d6,stroke:#333
+    style C fill:#9fc5e8,stroke:#333
+    style D fill:#d9ead3,stroke:#333
+```
+
+## 1. Cliente Docker - Tu interfaz de comunicación
+
+**¿Qué es?** La herramienta de línea de comandos (`docker`) que usas para hablar con Docker
+
+**Funciones principales:**
+
+- Recibe tus comandos (`docker run`, `docker build`)
+- Se comunica con el Daemon
+- Te muestra los resultados
+
+```bash
+# Tú escribes esto:
+docker run hello-world
+
+# El cliente lo envía al daemon
+# El daemon lo ejecuta
+# El cliente te muestra el resultado
+```
+
+## 2. Docker Daemon - El cerebro operativo
+
+**¿Qué es?** El servicio que corre en segundo plano gestionando todo
+
+**Responsabilidades:**
+
+- 🏗️ Construir imágenes
+- 🚀 Ejecutar contenedores
+- 💾 Gestionar almacenamiento
+- 🌐 Manejar redes
+- 📦 Administrar volúmenes
+
+**Dato curioso:** El daemon es quien realmente hace el trabajo pesado
+
+## 3. Registros Docker - La biblioteca de imágenes
+
+**¿Qué es?** Donde se almacenan y comparten las imágenes de Docker
+
+**El registro más famoso:** Docker Hub (como GitHub para código)
+
+**Tipos de registros:**
+
+- **Públicos:** Docker Hub (oficiales y de la comunidad)
+- **Privados:** Registros empresariales
+- **Locales:** Tu propia máquina
+
+---
+
+## El flujo fundamental: Build, Share, Run
+
+### El ciclo de vida de una aplicación Dockerizada
+
+```{mermaid}
+graph LR
+    A[Dockerfile] --> B[**Build**]
+    B --> C[Imagen]
+    C --> D[**Share**]
+    D --> E[Registro]
+    E --> F[**Run**]
+    F --> G[Contenedor]
+```
+
+### **1. Build (Construir)**
+- Crear una **imagen** de Docker a partir de un archivo `Dockerfile`.
+
+### **2. Share (Compartir)**
+- Subir la imagen a un **registro** (Docker Hub, GitLab Container Registry, etc.).
+
+### **3. Run (Ejecutar)**
+- Descargar la imagen y ejecutar su contenedor en cualquier máquina con Docker.
+
+---
+
+## Paso 1: BUILD - Crear la imagen
+
+**¿Qué es una imagen?** 
+
+- Plantilla de solo lectura con instrucciones
+- Como una clase en programación orientada a objetos
+- Contiene todo lo necesario para ejecutar la aplicación
+
+**¿Cómo se crea?** Con un **Dockerfile**:
+
+```dockerfile
+  FROM ubuntu:22.04
+  RUN apt-get update && apt-get install -y python3
+  COPY app.py /app/
+  CMD ["python3", "/app/app.py"]
+```
+
+## Proceso de build
+
+1. Descarga imagen base
+2. Ejecuta cada instrucción
+3. Crea capas (layers) por cada instrucción
+4. Genera la imagen final
+
+## Paso 2: SHARE - Distribuir la imagen
+
+**¿Por qué compartir?**
+
+- Para que otros desarrolladores usen tu imagen
+- Para desplegar en diferentes entornos
+- Para colaborar en equipo
+
+**Comandos clave:**
+
+```bash
+docker push mi-imagen:versión    # Subir al registro
+docker pull mi-imagen:versión    # Descargar del registro
+```
+
+## Beneficios
+
+- ✅ Consistencia garantizada
+- ✅ Versionado claro
+- ✅ Fácil rollback
+
+## Paso 3: RUN - Ejecutar el contenedor
+
+**¿Qué es un contenedor?**
+
+- Instancia ejecutable de una imagen
+- Como un objeto creado desde una clase
+- Aislado pero eficiente
+
+**El comando mágico:**
+
+```bash
+docker run -d -p 80:80 mi-imagen:versión
+```
+
+## Qué pasa cuando ejecutas `docker run`
+
+1. ✅ Busca la imagen localmente
+2. ✅ Si no existe, la descarga del registro
+3. ✅ Crea un sistema de archivos writable
+4. ✅ Configura la red isolation
+5. ✅ Ejecuta el proceso especificado
+
+---
+
+## Resumen conceptual {.smaller}
+
+### La analogía de la pizza
+
+**Dockerfile = Receta de la pizza**
+
+- Instrucciones para crear la pizza
+- Define ingredientes y pasos
+
+**Imagen = Pizza congelada**
+
+- Pizza lista pero estática
+- Se puede compartir y almacenar
+
+**Contenedor = Pizza caliente servida**
+
+- Pizza en ejecución
+- Lista para consumir
+
+## Ventajas clave de Docker
+
+- 🚀 **Consistencia:** Funciona igual en todos lados
+- 📦 **Aislamiento:** Aplicaciones no interfieren entre sí
+- ⚡ **Eficiencia:** Máximo aprovechamiento de recursos
+- 🔁 **Reproducibilidad:** Mismos resultados siempre
+- 📚 **Ecosistema:** Herramientas y comunidad robustas
+
+### Para operaciones:
+
+- 🔄 **Despliegues predictivos:** Siempre funciona igual  
+- 📊 **Monitorización:** Aislamiento facilita el monitoreo 
+- 🛡️ **Seguridad:** Aislamiento reduce superficie de ataque  
+
+---
+
+## Próximos pasos
+
+### Lo que viene después...
+
+En los siguientes módulos exploraremos:
+
+- 📝 Crear nuestro primer Dockerfile
+- 🏗️ Construir imágenes personalizadas
+- 🔗 Conectar contenedores entre sí
+- 📊 Orquestar múltiples contenedores
+
+## Puntos clave para recordar
+
+1. **Docker soluciona** el problema "en mi máquina funciona"
+2. **Contenedores son más eficientes** que máquinas virtuales
+3. **Arquitectura cliente-servidor** con tres componentes principales
+4. **Flujo Build-Share-Run** para el ciclo de vida de aplicaciones
+5. **Imágenes son plantillas**, contenedores son instancias ejecutando
+
+# ¿Preguntas?
+
+*¿Alguna duda sobre los conceptos básicos antes de pasar a la práctica?*
+
+# 🐳 Módulo 2: Gestión Básica de Contenedores
+
+## ¡Domina los contenedores como un DJ domina sus tornamesas!
+
+¡Hola de nuevo, Docker Ninja en formación! 🥋  
+
+En este módulo no vamos a tocar código ni Dockerfiles. Solo vamos a **manejar contenedores vivos** como si fueran mascotas tecnológicas: alimentarlos, revisarlos, darles órdenes... ¡y a veces decirles adiós! 😢
+
+
+## ¡Imagina esto!  
+
+> Tienes 5 contenedores corriendo. Uno se volvió loco. Otro no arranca. Otro esconde errores en sus logs. ¿Qué haces?
+
+¡No entres en pánico! Docker te da **superpoderes de control** con unos pocos comandos. Vamos a conocerlos uno por uno, con dibujos, analogías y hasta drama.
+
+
+## Tu primer día como "conductor" de contenedores
+
+```{mermaid}
+graph LR
+    A[Tú] --> B[docker run]
+    B --> C[🚀 Contenedor inicia]
+    C --> D[docker ps]
+    D --> E[📊 Monitoreo]
+    C --> F[docker exec]
+    F --> G[⚡ Interacción]
+    C --> H[docker stop]
+    H --> I[💤 Pausa]
+    I --> J[docker start]
+    J --> K[🔁 Reactivación]
+```
+
+**Piensa en Docker como tu nuevo superpoder:**
+
+- 🎮 **Control total** sobre aplicaciones
+- 🔍 **Visibilidad completa** de lo que pasa dentro
+- ⚡ **Interacción instantánea** cuando lo necesites
+
+---
+
+## Comandos Esenciales: Tu Caja de Herramientas
+
+### El ciclo de vida básico de un contenedor
+
+```{mermaid}
+graph LR
+    A[🎯 RUN] --> B[👀 PS]
+    B --> C[⏸️ STOP]
+    C --> D[▶️ START]
+    D --> E[🗑️ RM]
+    E --> A
+```
+- **`run`**: Crea y ejecuta un contenedor
+- **`ps`**: Listar contenedores
+- **`stop`**: Detener un contenedor
+- **`stop`**: Iniciar un contenedor
+- **`rm`**: Eliminar un contenedor
+
+## 1. `docker run` - El Comando Mágico
+
+### ¡Dale vida a tus contenedores!
+
+**¿Qué hace?** Crea y ejecuta un nuevo contenedor desde una imagen
+
+```bash
+# La fórmula básica
+docker run [OPCIONES] IMAGEN [COMANDO]
+```
+\
+
+### Opciones más comunes (tus "modificadores")
+
+| Opción | Significado | Ejemplo |
+|--------|-------------|---------|
+| `-d` | Detached (en segundo plano) | `docker run -d nginx` |
+| `-p` | Mapeo de puertos | `docker run -p 8080:80 nginx` |
+| `--name` | Nombre personalizado | `docker run --name mi-web nginx` |
+| `-it` | Interactivo con terminal | `docker run -it ubuntu bash` |
+
+## Ejemplos prácticos (sin ejecutar aún)
+
+**Ejemplo 1: Servidor web simple**
+
+```bash
+docker run -d -p 80:80 --name mi-servidor nginx
+```
+*"Ejecuta nginx en segundo plano, mapea puerto 80 y llámalo 'mi-servidor'"*
+
+**Ejemplo 2: Terminal interactiva**
+
+```bash
+docker run -it --name mi-terminal ubuntu /bin/bash
+```
+*"Abre una terminal bash dentro de Ubuntu y mantén la sesión interactiva"*
+
+## Notas sobre `docker run`
+
+🧠 ¡Ojo! Por defecto, el contenedor se ejecuta en **primer plano**. Para que corra en segundo plano, usa `-d` (de detached):
+
+```{mermaid}
+graph LR
+    A[Imagen nginx] -->|docker run| B[Contenedor nuevo]
+    B --> C[Estado: RUNNING]
+    C --> D[PID asignado, puertos, filesystem...]
+```
+
+✅ `docker run` = nacimiento de un contenedor.  
+⚠️ ¡Cada `run` crea un contenedor NUEVO! (No reinicia uno viejo)
+
+## 2. `docker ps` - Tu Panel de Control
+
+### ¿Qué está pasando en tu sistema Docker?
+
+**¿Qué hace?** Muestra **solo** los contenedores en ejecución
+
+```bash
+# Versión básica
+docker ps
+```
+Para ver **todos**: corriendo, detenidos, fallidos, zombies... ¡todos!
+
+```bash
+# Versión extendida (incluye detenidos)
+docker ps -a
+```
+Especificar el formato de salida
+
+```bash
+# Versión ultra-detalle
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+```
+
+## Entendiendo la salida de `docker ps`
+
+\
+
+```bash
+CONTAINER ID   IMAGE   COMMAND    CREATED       STATUS       PORTS                 NAMES
+a1b2c3d4e5f6   nginx   "nginx..." 2 hours ago   Up 2 hours   0.0.0.0:80->80/tcp   mi-servidor
+```
+
+📌 Columnas clave:
+
+- `CONTAINER ID`: El DNI del contenedor (los primeros 12 caracteres del hash).
+- `IMAGE`: ¿De qué imagen nació?
+- `COMMAND`: ¿Qué comando está ejecutando?
+- `STATUS`: ¿Running? ¿Exited? ¿Hace cuánto?
+- `NAMES`: ¡Un nombre aleatorio (o el que tú le pusiste)!
+
+## Tu dashboard mental
+
+```{mermaid}
+graph TB
+    A[docker ps] --> B[📊 Estado actual]
+    B --> C[🆔 IDs únicos]
+    B --> D[⏱️ Tiempo ejecución]
+    B --> E[🔗 Puertos activos]
+    B --> F[🏷️ Nombres contenedores]
+```
+
+💡 Tip Ninja: Usa `docker ps -a --no-trunc` para ver IDs completos. 
+
+💡 Tip más Ninja: `docker ps -q` solo muestra los IDs. ¡Perfecto para scripts!
+
+---
+
+## 3. `docker stop` & `docker start` - El Interruptor
+
+### Controla la energía de tus contenedores
+
+```{mermaid}
+graph LR
+    A[🚀 Running] --> B[docker stop]
+    B --> C[💤 Stopped]
+    C --> D[docker start]
+    D --> A
+```
+
+### `docker stop` - Apagado elegante
+
+**¿Qué hace?** Detiene un contenedor en ejecución de manera controlada
+
+```bash
+# Por nombre
+docker stop mi-servidor
+
+# Por ID (primeros caracteres)
+docker stop a1b2c3
+```
+
+## ¿Cómo funciona el `docker stop`?
+
+1. ✅ Envía señal SIGTERM ("por favor, apágate")
+2. ⏳ Espera 10 segundos para shutdown elegante
+3. 🚨 Si no responde, envía SIGKILL ("apágate ahora")
+
+
+## `docker start` - Reactivación
+
+**¿Qué hace?** Reinicia un contenedor previamente detenido
+
+```bash
+docker start mi-servidor
+```
+\
+
+**Ventaja clave:** Mantiene la misma configuración
+
+- ¡Revive un contenedor detenido!  
+- Conserva todo su estado anterior: archivos modificados, configuraciones, logs...  
+- ¡NO crea uno nuevo! Solo reanuda el mismo.
+
+---
+
+## 4. `docker rm` - Limpieza Total
+
+### Cuando necesitas borrar contenedores
+
+> “Cuando un contenedor ya no sirve... hay que darle un adiós digno.”
+
+**¿Qué hace?** Elimina permanentemente un contenedor
+
+```bash
+# Eliminar uno específico
+docker rm mi-servidor
+
+# Eliminar varios
+docker rm cont1 cont2 cont3
+```
+
+## Eliminar TODOS los contenedores detenidos
+
+💡 ¿Quieres borrar TODOS los contenedores detenidos de una vez?
+
+```bash
+docker container prune
+```
+
+¡Limpieza express! 🧹
+
+```{mermaid}
+graph LR
+    A[Contenedor STOPPED] -->|docker rm| B[🗑️ Eliminado del sistema]
+    C[Contenedor RUNNING] -->|docker rm -f| D[⛔ Detenido + Eliminado]
+```
+
+## ¡Cuidado! Reglas importantes
+
+```{mermaid}
+graph LR
+    A[¿Quieres eliminar?] --> B{¿Está ejecutándose?}
+    B -->|Sí| C[🚫 Error: No se puede eliminar]
+    B -->|No| D[✅ Eliminación exitosa]
+    
+    C --> E[Opción force]
+    E --> F[docker rm -f]
+    F --> G[⚠️ Eliminación forzada]
+```
+
+**Ejemplo seguro:**
+```bash
+# Primero detener, luego eliminar
+docker stop mi-servidor
+docker rm mi-servidor
+```
+
+## Forzar eliminación
+
+```bash
+# O forzar eliminación (no recomendado en producción)
+docker rm -f mi-servidor
+```
+
+⚠️ ¡Cuidado! `docker rm` borra:
+
+- Los cambios en el filesystem del contenedor (si no usaste volúmenes).
+- Los logs (a menos que los hayas exportado).
+- Su historial.
+
+
+---
+
+## 5. `docker logs` - Tu Ventana al Interior
+
+### ¿Qué está pasando dentro del contenedor?
+
+> “¿Qué te pasa, contenedor? ¿Por qué fallaste? ¡Háblame! 🎤”
+
+**¿Qué hace?** Muestra los logs (registros) de un contenedor
+
+```bash
+# Logs básicos
+docker logs mi-servidor
+
+# Seguir logs en tiempo real (como tail -f)
+docker logs -f mi-servidor
+
+# Últimas 10 líneas
+docker logs --tail 10 mi-servidor
+
+# Logs con timestamps
+docker logs -t mi-servidor
+```
+
+## ¿Cómo funciona `docker logs`?
+
+- Muestra la **salida estándar (stdout)** y **errores (stderr)** del proceso principal del contenedor.
+- ¡Incluso si el contenedor está detenido! Los logs persisten hasta que lo borres.
+
+```{mermaid}
+graph LR
+    A[Contenedor] -->|stdout/stderr| B[Motor de logs de Docker]
+    C[docker logs] -->|consulta| B
+    B --> D[Te muestra lo que el contenedor 'dijo']
+```
+
+💡 Tip: Si tu app escribe logs a archivos (no a consola), ¡Docker no los verá! Usa montajes de volumen o redirige a stdout.
+
+## Casos de uso comunes de `docker logs`
+
+**Debugging de aplicaciones:**
+```bash
+# ¿Por qué mi app no funciona?
+docker logs mi-app
+
+# Ver errores en tiempo real mientras testeamos
+docker logs -f mi-app
+```
+
+**Monitoreo de servicios:**
+```bash
+# ¿Está recibiendo tráfico mi web?
+docker logs --since 1h nginx
+```
+\
+
+### Estructura típica de logs
+
+```
+2023-01-15T10:30:00Z Server starting on port 3000
+2023-01-15T10:31:15Z Database connection established
+2023-01-15T10:32:30Z User login from IP 192.168.1.100
+```
+
+---
+
+## 6. `docker exec` - Tu Pase de Acceso
+
+### Entra en contenedores en ejecución
+
+> “¿Qué pasa dentro de ese contenedor? ¡Voy a entrar como espía y ejecutar comandos!”
+
+**¿Qué hace?** Ejecuta un comando dentro de un contenedor que ya está corriendo
+
+```bash
+# Fórmula básica
+docker exec [OPCIONES] CONTENEDOR COMANDO
+```
+
+## Modo interactivo
+
+**Ejemplo 1: Shell interactivo**
+
+```bash
+docker exec -it mi-servidor /bin/bash
+```
+*"Abre una terminal bash dentro del contenedor 'mi-servidor'"*
+
+### Modo no interactivo 
+
+**Ejemplo 2: Ejecución (no interactiva)**
+
+```bash
+docker exec mi-servidor ls -la /app
+```
+*"Lista archivos en /app y sale inmediatamente"*
+
+## Casos de uso reales de `docker exec`
+
+```{mermaid}
+graph 
+    A[docker exec] --> B[🔧 Debugging]
+    A --> C[📁 Inspección archivos]
+    A --> D[⚙️ Configuración]
+    A --> E[📊 Monitoreo]
+    
+    B --> F[Ver variables entorno]
+    C --> G[Revisar logs aplicación]
+    D --> H[Editar configuraciones]
+    E --> I[Ver procesos internos]
+```
+
+### Ejemplos prácticos de `docker exec`
+
+```bash
+# Ver variables de entorno
+docker exec mi-app env
+# Revisar uso de memoria
+docker exec mi-app free -h
+# Ver procesos ejecutándose
+docker exec mi-app ps aux
+# Crear archivo de configuración
+docker exec -it mi-app vi /app/config.conf
+```
+
+---
+
+## Flujo de Trabajo Completo
+
+### Tu rutina diaria con contenedores
+
+```{mermaid}
+graph LR
+    A[🚀 docker run] --> B[👀 docker ps]
+    B --> C[📝 docker logs]
+    C --> D{¿Problemas?}
+    D -->|Sí| E[⚡ docker exec]
+    D -->|No| F[⏸️ docker stop]
+    E --> F
+    F --> G[▶️ docker start]
+    G --> H[🗑️ docker rm]
+```
+
+### Ciclo completo de una aplicación web
+
+```bash
+# 1. Iniciar
+docker run -d -p 8080:80 --name web nginx
+# 2. Verificar
+docker ps
+# 3. Monitorear
+docker logs web
+# 4. Inspeccionar
+docker exec web nginx -t  # Test configuración
+# 5. Detener
+docker stop web
+# 6. Eliminar
+docker rm web
+```
+
+## Notas sobre `docker exec`
+
+⚠️ ¡Ojo!  
+
+- Solo funciona en contenedores **en ejecución**.  
+- El proceso que ejecutas (`bash`, `ls`, etc.) es **independiente** del proceso principal.  
+- Si sales de `bash`, el contenedor sigue corriendo. ¡No lo matas!
+
+---
+
+## Buenas Prácticas y Consejos
+
+### Nomenclatura útil
+
+**Nombres descriptivos:**
+
+- `web-frontend` en lugar de `container-1`
+- `db-postgres` en lugar de `c3p0`
+- `cache-redis` en lugar de `red-container`
+
+**Tags específicos:**
+
+- `app:version1.2` mejor que solo `app`
+- `nginx:latest` puede cambiar, `nginx:1.21` es específico
+
+## Seguridad básica
+
+```{mermaid}
+graph LR
+    A[🔒 Buenas prácticas] --> B[No usar root]
+    A --> C[Limitar permisos]
+    A --> D[Logs seguros]
+    
+    B --> E[docker exec -u usuario]
+    C --> F[Sin --privileged]
+    D --> G[No logs sensitivos]
+```
+
+---
+
+## Resumen de Comandos
+
+### Tu cheat sheet mental
+
+| Comando | Propósito | Ejemplo |
+|---------|-----------|---------|
+| `docker run` | Crear y ejecutar | `docker run -d nginx` |
+| `docker ps` | Listar contenedores | `docker ps -a` |
+| `docker stop` | Detener contenedor | `docker stop web` |
+| `docker start` | Iniciar contenedor | `docker start web` |
+| `docker rm` | Eliminar contenedor | `docker rm web` |
+| `docker logs` | Ver registros | `docker logs -f web` |
+| `docker exec` | Ejecutar comando interno | `docker exec -it web bash` |
+
+## Orden lógico de operaciones
+
+1. **CREATE** → `docker run`
+2. **MONITOR** → `docker ps`, `docker logs`  
+3. **INTERACT** → `docker exec`
+4. **PAUSE** → `docker stop`
+5. **RESUME** → `docker start`
+6. **CLEANUP** → `docker rm`
+
+## ¡Flujo Típico de Trabajo! (Como un ritual mágico)
+
+```{mermaid}
+graph LR
+    A[Iniciar contenedor] -->|**docker run -d**| B[Ver estado]
+    B -->|**docker ps**| C[¿Funciona?]
+    C -->|Sí| D[Ver logs si hay dudas]
+    C -->|No| E[Revisar logs: **docker logs**]
+    D --> F[¿Necesito entrar?]
+
+    style A fill:#d5e8d4,stroke:#333
+    style B fill:#d5e8d4,stroke:#333
+    style C fill:#fff2cc,stroke:#333
+    style D fill:#d5e8d4,stroke:#333
+    style E fill:#f8cecc,stroke:#333
+    style F fill:#fff2cc,stroke:#333
+```
+
+```{mermaid}
+graph LR
+    F[¿Necesito entrar?] -->|Si **docker exec**| I[Ejecutar comandos]
+    F -->|No| H[Dejarlo correr]
+    I --> J[Salir sin detenerlo]
+    J --> H
+    H --> K["Al terminar: **docker stop** + **docker rm**"]
+
+    style F fill:#fff2cc,stroke:#333
+    style H fill:#d5e8d4,stroke:#333
+    style I fill:#d5e8d4,stroke:#333
+    style J fill:#d5e8d4,stroke:#333
+    style K fill:#f8cecc,stroke:#333
+```
+
+---
+
+## ¡Errores Comunes (y cómo no morir en el intento)!
+
+🚨 **“Error: No such container”**
+→ Te equivocaste en el nombre o ID. Usa `docker ps -a` para verificar.
+
+🚨 **“You cannot remove a running container”**
+→ ¡Deténlo primero! `docker stop` → luego `docker rm`.
+
+🚨 **“Container is not running” al usar `docker exec`**
+→ ¿Está detenido? Inícialo con `docker start`.
+
+🚨 **No veo nada en `docker logs`**
+→ ¿Tu app escribe a archivos? Redirige a stdout o usa volúmenes.
+
+---
+
+## ¡Para cerrar con broche de oro!
+
+> “Gestionar contenedores no es magia. Es rutina. Como cepillarte los dientes, pero con más poder.”
+
+🔁 `run` → `ps` → `logs` → `exec` → `stop` → `rm`  
+Ese es tu ciclo. Domínalo. Enséñaselo a otros. ¡Y nunca más temas a un contenedor rebelde!
+
+
+
+## ¿Preguntas?
+
+**Antes de pasar al laboratorio práctico:**
+
+- ❓ ¿Alguna duda sobre los comandos básicos?
+- ❓ ¿Confusión sobre cuándo usar cada comando?
+- ❓ ¿Curiosidad sobre casos específicos?
+
+**¡En el siguiente módulo veremos imágenes Docker!**
