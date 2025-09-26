@@ -224,14 +224,49 @@ Francisco Palm <a href="https://orcid.org/0000-0002-1293-0868" class="quarto-tit
 <h2>¿Por qué nos importa el almacenamiento?</h2>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p><strong>Problema:</strong> Los contenedores son efímeros - Por diseño, los contenedores son temporales - Cuando un contenedor se elimina, TODO su contenido desaparece - ¡Incluyendo bases de datos, archivos de configuración, logs!</p>
+<p><strong>Problema:</strong> Los contenedores son efímeros</p>
+<ul>
+<li>Por diseño, los contenedores son temporales</li>
+<li>Cuando un contenedor se elimina, TODO su contenido desaparece</li>
+<li>¡Incluyendo bases de datos, archivos de configuración, logs!</li>
+</ul>
 </div><div class="column" style="width:50%;">
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode numberSource mermaid number-lines code-with-copy"><code class="sourceCode"><span id="cb1-1"><a href=""></a>graph TD</span>
 <span id="cb1-2"><a href=""></a>    A[Contenedor MySQL] --&gt; B[Datos en capa escribible]</span>
 <span id="cb1-3"><a href=""></a>    B --&gt; C[¡Contenedor eliminado!]</span>
 <span id="cb1-4"><a href=""></a>    C --&gt; D[💥 Datos perdidos]</span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
 </div></div>
+<ul>
+<li>Todo lo que guardas dentro del contenedor <strong>desaparece</strong> al detenerlo.</li>
+<li>¡Imagina perder la base de datos cada vez que reinicias tu app!</li>
+</ul>
+<blockquote>
+<p>🤯 <strong>¡No! Necesitamos un lugar donde los datos vivan más allá del contenedor.</strong></p>
+</blockquote>
 <p><strong>Solución:</strong> Necesitamos almacenamiento PERSISTENTE</p>
+<blockquote>
+<p>💡 <strong>¡Tu aplicación no es solo código! Es código + datos + comunicación.</strong></p>
+</blockquote>
+</section>
+<section id="solución-almacenamiento-persistente" class="slide level2">
+<h2>Solución: Almacenamiento persistente</h2>
+</section>
+<section id="docker-ofrece-tres-formas-principales-de-guardar-datos-fuera-del-contenedor" class="slide level2">
+<h2>Docker ofrece <strong>tres formas principales</strong> de guardar datos fuera del contenedor:</h2>
+<ol type="1">
+<li><p><strong>Bind mounts</strong><br>
+→ Monta un directorio o archivo del <strong>host</strong> dentro del contenedor.</p></li>
+<li><p><strong>Volumes</strong><br>
+→ Almacenamiento gestionado por Docker (recomendado para producción).</p></li>
+<li><p><strong>tmpfs mounts</strong><br>
+→ Almacenamiento en memoria (no persistente, útil para datos temporales).</p></li>
+</ol>
+<p>🧠 <strong>Piensa en ello como elegir entre:</strong></p>
+<ul>
+<li>Guardar en tu casa (bind mount)</li>
+<li>Guardar en una caja fuerte del banco (volume)</li>
+<li>Guardar en una pizarra (tmpfs)</li>
+</ul>
 </section>
 <section id="el-sistema-de-archivos-de-docker" class="slide level2">
 <h2>El sistema de archivos de Docker</h2>
@@ -296,6 +331,7 @@ Francisco Palm <a href="https://orcid.org/0000-0002-1293-0868" class="quarto-tit
 <span id="cb5-5"><a href=""></a>    style A fill:#fff3e0</span>
 <span id="cb5-6"><a href=""></a>    style C fill:#fff3e0</span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
 </div></div>
+<p><strong>📌 Ideal para desarrollo</strong>, cuando quieres editar archivos en tiempo real.</p>
 <p><strong>⚠️ Precaución:</strong> Puede causar conflictos de permisos</p>
 </section>
 <section id="tmpfs-almacenamiento-en-memoria" class="slide level2">
@@ -563,6 +599,66 @@ Francisco Palm <a href="https://orcid.org/0000-0002-1293-0868" class="quarto-tit
 <span id="cb16-13"><a href=""></a>    J[Volume Queue] --&gt; H</span>
 <span id="cb16-14"><a href=""></a>    </span>
 <span id="cb16-15"><a href=""></a>    style E fill:#f3e5f5</span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="creando-una-red-personalizada" class="slide level2">
+<h2>Creando una red personalizada</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode numberSource bash number-lines code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href=""></a><span class="ex">docker</span> network create mi-red</span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Luego, al crear contenedores:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode numberSource bash number-lines code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href=""></a><span class="ex">docker</span> run <span class="at">-d</span> <span class="at">--network</span><span class="op">=</span>mi-red <span class="at">--name</span><span class="op">=</span>db mysql</span>
+<span id="cb18-2"><a href=""></a><span class="ex">docker</span> run <span class="at">-d</span> <span class="at">--network</span><span class="op">=</span>mi-red <span class="at">--name</span><span class="op">=</span>web nginx</span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Ahora, desde <code>web</code>, puedes hacer:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode numberSource bash number-lines code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href=""></a><span class="fu">ping</span> db  <span class="co"># ¡Funciona!</span></span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
+<blockquote>
+<p>✨ <strong>Docker resuelve <code>db</code> → IP automáticamente. ¡Magia de DNS!</strong></p>
+</blockquote>
+</section>
+<section id="compartiendo-datos-entre-contenedores" class="slide level2">
+<h2>Compartiendo datos entre contenedores</h2>
+<p>¿Y si dos contenedores necesitan los <strong>mismos archivos</strong>?</p>
+<h3 id="opción-1-usar-un-volume-compartido">Opción 1: Usar un <strong>volume compartido</strong></h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode numberSource mermaid number-lines code-with-copy"><code class="sourceCode"><span id="cb20-1"><a href=""></a>graph LR</span>
+<span id="cb20-2"><a href=""></a>  Volume[(datos-compartidos)] --&gt; Contenedor1</span>
+<span id="cb20-3"><a href=""></a>  Volume --&gt; Contenedor2</span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Ambos montan el mismo volumen → ven los mismos archivos.</p>
+<h3 id="opción-2-usar-un-contenedor-de-datos-menos-común-hoy">Opción 2: Usar un <strong>contenedor de datos</strong> (menos común hoy)</h3>
+<blockquote>
+<p>💡 <strong>El volumen compartido es la forma moderna y limpia.</strong></p>
+</blockquote>
+</section>
+<section id="buenas-prácticas-que-debes-recordar" class="slide level2">
+<h2>Buenas prácticas que debes recordar</h2>
+<p>✅ <strong>Usa volumes para datos persistentes en producción</strong><br>
+✅ <strong>Crea redes personalizadas para grupos de contenedores</strong><br>
+✅ <strong>Nunca almacenes datos críticos en el filesystem del contenedor</strong><br>
+✅ <strong>Nombra tus contenedores y redes para hacer todo más legible</strong></p>
+<blockquote>
+<p>🧩 <strong>Docker no es solo “correr una imagen”. Es orquestar un ecosistema.</strong></p>
+</blockquote>
+</section>
+<section id="resumen-visual" class="slide level2">
+<h2>Resumen visual</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode numberSource mermaid number-lines code-with-copy"><code class="sourceCode"><span id="cb21-1"><a href=""></a>graph LR</span>
+<span id="cb21-2"><a href=""></a>  Host --&gt;|Bind Mount| Container1</span>
+<span id="cb21-3"><a href=""></a>  DockerEngine --&gt;|Volume| Container2</span>
+<span id="cb21-4"><a href=""></a>  DockerEngine --&gt;|Volume| Container3</span>
+<span id="cb21-5"><a href=""></a>  Network[(mi-red)] --&gt; Container2</span>
+<span id="cb21-6"><a href=""></a>  Network --&gt; Container3</span>
+<span id="cb21-7"><a href=""></a>  Container2 &lt;--&gt;|Se comunican por nombre| Container3</span></code></pre></div><button title="Copiar al portapapeles" class="code-copy-button"><i class="bi"></i></button></div>
+<ul>
+<li><strong>Almacenamiento</strong>: fuera del contenedor → persistencia.</li>
+<li><strong>Red</strong>: red personalizada → comunicación fácil y segura.</li>
+</ul>
+</section>
+<section id="qué-sigue" class="slide level2">
+<h2>¿Qué sigue?</h2>
+<p>Ahora que entiendes los <strong>conceptos</strong>,<br>
+¡estarás listo para el laboratorio práctico!</p>
+<blockquote>
+<p>🚀 <strong>Recuerda</strong>:<br>
+- Los datos viven en <strong>volumes</strong><br>
+- Los contenedores se hablan en <strong>redes</strong><br>
+- Tú eres el arquitecto de este mundo efímero… ¡pero con memoria!</p>
+</blockquote>
 </section>
 <section id="preparados-para-el-laboratorio" class="slide level2">
 <h2>¡Preparados para el laboratorio!</h2>
