@@ -389,6 +389,21 @@ graph TB
 
 ## Escalando servicios
 
+Con Compose puedes **escalar servicios** fácilmente:
+
+```bash
+docker-compose up --scale api=3
+```
+---
+
+> 🎻 Ahora tienes **3 instancias del API** corriendo simultáneamente.  
+> (Ideal para pruebas de carga o balanceo simple)
+
+> ⚠️ Pero: Compose **no es un orquestador de producción** como Kubernetes.  
+> Es para desarrollo, pruebas y entornos simples.
+
+---
+
 ::: {.columns}
 ::: {.column width="50%}
 **Escala horizontal simple:**
@@ -738,6 +753,15 @@ graph TB
 - Estrategias de despliegue (rolling updates)
 - Logs centralizados y monitoreo
 
+**En resumen:**
+
+1. **Separa entornos**: usa `docker-compose.dev.yml`, `docker-compose.test.yml`
+2. **No expongas puertos innecesarios** al host (solo lo que necesites acceder desde fuera)
+3. **Usa nombres descriptivos** para servicios y volúmenes
+4. **Versiona tu `docker-compose.yml`** en Git (¡pero no el `.env`!)
+5. **Documenta** en comentarios lo que hace cada servicio
+
+
 ---
 
 ## Flujo de trabajo típico
@@ -805,4 +829,16 @@ graph TB
 - Diferencias entre desarrollo y producción
 - Introducción a Docker Swarm
 
-**Próximo paso:** Laboratorio práctico donde aplicaremos estos conceptos con ejercicios reales
+---
+
+## ¿Qué sigue?
+
+- Laboratorio práctico: ¡crearemos una app con frontend, backend y base de datos!
+- Profundizaremos en:
+  - Health checks
+  - Perfiles (`profiles`)
+  - Sobrescritura de archivos (`-f`)
+  - Integración con Docker Swarm (opcional)
+
+> 🧠 Recuerda: **la orquestación empieza con entender los bloques**.  
+> ¡Y tú ya tienes los tuyos!
