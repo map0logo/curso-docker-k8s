@@ -14,4 +14,831 @@ html-math-method:
   url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 lang: es
 logo: images/qu4nt-logo.png
+
 ---
+
+# Docker Compose y Orquestación de aplicaciones con múltiples contenedores
+
+---
+
+## El problema: Aplicaciones multi-contenedor
+
+::: {.columns}
+::: {.column width="50%"}
+**¿Te ha pasado esto?**
+```bash
+docker run -d --name db -v db_data:/data mysql
+docker run -d --name web -p 80:80 --link db nginx
+docker run -d --name cache --link db redis
+docker run -d --name app --link db --link web --link cache nodejs
+```
+
+**Problemas:**
+- Comandos largos y complejos
+- Dependencias difíciles de gestionar
+- Orden de inicio crítico
+- Configuración dispersa
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[MySQL] --> B[¿Inició primero?]
+    C[Redis] --> D[¿Depende de MySQL?]
+    E[Nginx] --> F[¿Puertos conflictivos?]
+    G[Node.js] --> H[¿Enlaces correctos?]
+    
+    style B fill:#ffebee
+    style D fill:#ffebee
+    style F fill:#ffebee
+    style H fill:#ffebee
+```
+:::
+:::
+
+**Solución necesaria:** Orquestación simplificada
+
+Imagina que cada contenedor es un músico:  
+uno toca la guitarra (la base de datos), otro la batería (el backend), y otro el teclado (el frontend).  
+**Docker Compose** es el director que los hace tocar juntos en armonía.
+
+---
+
+## ¿Qué es Docker Compose?
+
+::: {.columns}
+::: {.column width="60%"}
+**Definición:**
+- Herramienta para definir y ejecutar aplicaciones multi-contenedor
+- Usa un archivo YAML para configurar los servicios
+- Gestiona el ciclo de vida completo de la aplicación
+
+**Analogía:**
+- Como un "director de orquesta" para contenedores
+- Partitura (docker-compose.yml) → Música (aplicación ejecutándose)
+
+**Beneficios clave:**
+- Una sola command para levantar toda la app
+- Configuración versionable
+- Reproducible en cualquier entorno
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph TB
+    A[docker-compose.yml] --> B[Docker Compose]
+    B --> C[Redes]
+    B --> D[Volúmenes]
+    B --> E[Contenedores]
+    
+    C --> F[Aplicación ejecutándose]
+    D --> F
+    E --> F
+```
+:::
+:::
+
+---
+
+## ¿Por qué necesitamos Docker Compose?
+
+- **Docker solo** maneja **un contenedor a la vez**.
+- Las aplicaciones reales usan **múltiples servicios**:  
+  - Base de datos
+  - API
+  - Frontend
+  - Cache
+  - Colas de mensajes
+- Sin Compose:  
+  ```bash
+  docker run -d --name db postgres
+  docker run -d --name redis redis
+  docker run -d --name api --link db --link redis my-api
+  docker run -d --name web --link api my-web
+  ```
+  😵‍💫 ¡Demasiado manual y propenso a errores!
+
+---
+
+## Anatomía de docker-compose.yml
+
+```yaml
+version: '3.8'
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+
+  app:
+    build: ./app
+    environment:
+      - DATABASE_URL=postgresql://db:5432
+    depends_on:
+      - database
+
+  database:
+    image: postgres:13
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
+```
+---
+
+### 🔑 **Tres elementos clave**:  
+  1. **`version`**: Versión del formato de Compose  
+  2. **`services`**: Cada contenedor es un "servicio"  
+  3. **Configuración por servicio**: imagen, puertos, volúmenes, dependencias...
+
+---
+
+## Conceptos fundamentales de Compose
+
+```mermaid
+graph TB
+    A[Compose Concepts] --> B[Services]
+    A --> C[Networks]
+    A --> D[Volumes]
+    A --> E[Dependencies]
+    
+    B --> F[Contenedores que forman la app]
+    C --> G[Comunicación entre servicios]
+    D --> H[Almacenamiento persistente]
+    E --> I[Orden de inicio]
+    
+    style B fill:#e3f2fd
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+```
+
+---
+
+## Services: El corazón de Compose
+
+::: {.columns}
+::: {.column width="50%"}
+**¿Qué es un servicio?**
+- Definición de cómo debe ejecutarse un contenedor
+- Puede tener múltiples instancias (réplicas)
+- Configuración centralizada
+
+**Configuraciones comunes:**
+- `image` o `build`
+- `ports` y `expose`
+- `environment` y `env_file`
+- `volumes` y `networks`
+- `depends_on` para dependencias
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph LR
+    A[Service Definition] --> B[1..N Instances]
+    B --> C[Container 1]
+    B --> D[Container 2]
+    B --> E[Container N]
+    
+    style A fill:#f3e5f5
+```
+:::
+:::
+
+**Ejemplo:** `web`, `api`, `database`, `cache` son servicios
+
+---
+
+## Redes: ¿Cómo se comunican los contenedores?
+
+::: {.columns}
+::: {.column width="50%}
+**Comportamiento por defecto:**
+- Docker Compose crea una red privada para tus servicios.
+- DNS automático usando nombres de servicio
+- Tu API puede llamar a `http://db:5432` sin saber la IP.
+- Puedes definir redes personalizadas si necesitas aislar grupos de otras aplicaciones
+:::
+
+::: {.column width="50%"}
+**Comunicación simplificada:**
+```yaml
+# web puede conectar a "db:5432"
+# sin conocer la IP real
+```
+:::
+
+```mermaid
+graph LR
+  A[Frontend] -->|http://api:3000| B(API)
+  B -->|db:5432| C[(Base de Datos)]
+  B -->|redis:6379| D[(Redis Cache)]
+```
+
+✅ Comunicación segura, sin exponer puertos al host.
+
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[compose-app_default] --> B[web]
+    A --> C[app]
+    A --> D[database]
+    A --> E[cache]
+    
+    B --> F[Resuelve: app]
+    B --> G[Resuelve: database]
+    C --> H[Resuelve: cache]
+    
+    style A fill:#e8f5e8
+```
+:::
+:::
+
+---
+
+## Dependencias y orden de inicio de los servicios
+
+::: {.columns}
+::: {.column width="50%"}
+**`depends_on`:**
+- Controla el orden de inicio
+- No espera que el servicio esté "listo"
+- Solo garantiza qué se inicia después
+
+**Problema común:**
+- La DB se inicia, pero tarda en aceptar conexiones
+- La app falla porque intenta conectar demasiado pronto
+
+> ⚠️ **Importante**: `depends_on` **no espera a que el servicio esté "listo"**, solo que se haya iniciado.
+
+**Solución avanzada:**
+- Healthchecks
+- Scripts de espera personalizados
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph LR
+    A[database] --> B[app]
+    B --> C[web]
+    
+    style A fill:#c8e6c9
+    style B fill:#fff9c4
+    style C fill:#ffccbc
+```
+```yaml
+services:
+  web:
+    depends_on:
+      - app
+  app:
+    depends_on:
+      - database
+```
+:::
+:::
+
+---
+
+## Variables de entorno y configuraciones
+
+::: {.columns}
+::: {.column width="50%}
+**Flexibilidad con variables:**
+```yaml
+services:
+  database:
+    image: postgres:${POSTGRES_VERSION:-13}
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+```
+
+> 🔐 Usa archivos `.env` para valores sensibles:
+
+```env
+DB_PASS=supersecreto123
+API_KEY=abc123
+```
+
+Compose los carga **automáticamente** si existe un `.env` en la misma carpeta.
+
+**Archivos de entorno:**
+- `.env` (automático)
+- `env_file:` específico por servicio
+
+**Beneficio:** Diferentes configuraciones por entorno
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[.env file] --> B[Compose Interpolation]
+    C[env_file:] --> B
+    B --> D[Final Configuration]
+    
+    style A fill:#e1f5fe
+    style C fill:#f3e5f5
+```
+:::
+:::
+
+---
+
+## Volúmenes y persistencia en Compose
+
+::: {.columns}
+::: {.column width="60%"}
+**Tipos de volúmenes:**
+- **Named volumes:** Gestionados por Docker
+- **Bind mounts:** Directorios del host
+- **Anonymous volumes:** Temporales
+
+**En Compose:**
+```yaml
+services:
+  database:
+    volumes:
+      - db_data:/var/lib/data
+      - ./config:/app/config
+
+volumes:
+  db_data:
+```
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph TB
+    A[Named Volume] --> B[Persiste entre deploys]
+    C[Bind Mount] --> D[Desarrollo]
+    E[Anonymous] --> F[Temporal]
+    
+    style A fill:#c8e6c9
+    style C fill:#fff3e0
+```
+:::
+:::
+
+🗃️ El volumen `db_data` vive **más allá** del ciclo de vida del contenedor.
+
+---
+
+## Escalando servicios
+
+Con Compose puedes **escalar servicios** fácilmente:
+
+```bash
+docker-compose up --scale api=3
+```
+---
+
+> 🎻 Ahora tienes **3 instancias del API** corriendo simultáneamente.  
+> (Ideal para pruebas de carga o balanceo simple)
+
+> ⚠️ Pero: Compose **no es un orquestador de producción** como Kubernetes.  
+> Es para desarrollo, pruebas y entornos simples.
+
+---
+
+::: {.columns}
+::: {.column width="50%}
+**Escala horizontal simple:**
+```bash
+docker-compose up --scale web=3 --scale api=2
+```
+
+**Límites:**
+- Compose no hace load balancing
+- Útil para desarrollo y testing
+- Producción necesita más herramientas
+
+**Caso de uso típico:**
+- Probar cómo se comporta la app con múltiples instancias
+- Desarrollo de características de concurrencia
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[web] --> B[web_1]
+    A --> C[web_2]
+    A --> D[web_3]
+    
+    E[api] --> F[api_1]
+    E --> G[api_2]
+    
+    style A fill:#f3e5f5
+    style E fill:#e1f5fe
+```
+:::
+:::
+
+---
+
+## Perfiles: Organizando servicios
+
+::: {.columns}
+::: {.column width="60%"}
+**Para diferentes contextos:**
+```yaml
+services:
+  frontend:
+    profiles: ["frontend"]
+    
+  backend:
+    profiles: ["backend"]
+    
+  database:
+    profiles: ["database", "production"]
+    
+  debug-tools:
+    profiles: ["development"]
+```
+
+**Uso:**
+```bash
+docker-compose --profile frontend up
+docker-compose --profile development up
+```
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph TB
+    A[Perfiles] --> B[Development]
+    A --> C[Production]
+    A --> D[Testing]
+    
+    B --> E[Servicios de debug]
+    C --> F[Servicios optimizados]
+    D --> G[Servicios de test]
+```
+:::
+:::
+
+---
+
+## Docker Compose vs Docker Swarm
+
+::: {.columns}
+::: {.column width="50%}
+**Docker Compose:**
+- Single-host
+- Desarrollo y testing
+- Configuración simple
+- Comandos directos
+
+**Docker Swarm:**
+- Multi-host
+- Producción
+- Alta disponibilidad
+- Escalado automático
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[Compose] --> B[1 Host]
+    B --> C[App Completa]
+    
+    D[Swarm] --> E[Múltiples Hosts]
+    E --> F[Cluster]
+    F --> G[Alta Disponibilidad]
+    
+    style A fill:#e1f5fe
+    style D fill:#c8e6c9
+```
+:::
+:::
+
+---
+
+## Introducción a Docker Swarm
+
+::: {.columns}
+::: {.column width="60%"}
+**¿Qué es?**
+- Orquestación nativa de Docker
+- Convierte múltiples hosts en un cluster
+- Gestiona despliegues, escalado, y alta disponibilidad
+
+**Conceptos clave:**
+- **Manager nodes:** Gestionan el cluster
+- **Worker nodes:** Ejecutan los contenedores
+- **Services:** Aplicaciones escalables
+- **Stacks:** Deploys con Compose files
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph TB
+    A[Manager] --> B[Worker 1]
+    A --> C[Worker 2]
+    A --> D[Worker 3]
+    
+    B --> E[Contenedores]
+    C --> E
+    D --> E
+    
+    style A fill:#ffccbc
+```
+:::
+:::
+
+---
+
+## Servicios en Swarm Mode
+
+::: {.columns}
+::: {.column width="50%}
+**Diferencias con Compose:**
+- Servicios distribuidos en múltiples nodos
+- Escalado automático
+- Load balancing integrado
+- Health checks y auto-recovery
+
+**Ejemplo:**
+```bash
+docker service create --name web --replicas 3 nginx
+```
+:::
+
+::: {.column width="50%"}
+```mermaid
+graph TB
+    A[Service: web] --> B[Replica 1]
+    A --> C[Replica 2]
+    A --> D[Replica 3]
+    
+    B --> E[Node A]
+    C --> F[Node B]
+    D --> G[Node C]
+    
+    style A fill:#f3e5f5
+```
+:::
+:::
+
+---
+
+## Stacks: Compose en producción
+
+::: {.columns}
+::: {.column width="60%}
+**¿Qué son?**
+- Deploys de aplicaciones multi-servicio en Swarm
+- Usan archivos docker-compose.yml mejorados
+- Gestionan servicios, redes, y volúmenes en cluster
+
+**Comando:**
+```bash
+docker stack deploy -c docker-compose.yml myapp
+```
+
+**Ventajas:**
+- Misma configuración que desarrollo
+- Despliegue declarativo
+- Rollbacks sencillos
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph TB
+    A[docker-compose.yml] --> B[Stack Deploy]
+    B --> C[Swarm Cluster]
+    C --> D[Servicios distribuidos]
+    
+    style B fill:#c8e6c9
+```
+:::
+:::
+
+---
+
+## Health Checks en orquestación
+
+::: {.columns}
+::: {.column width="60%}
+**Problema:** ¿Cómo sabe el orquestador si un servicio está sano?
+
+**Solución:** Health checks
+```yaml
+services:
+  web:
+    image: nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+**Comportamiento:**
+- Swarm rerutea tráfico lejos de instancias enfermas
+- Compose puede esperar a que los servicios estén listos
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph LR
+    A[Health Check] --> B[✅ Healthy]
+    A --> C[❌ Unhealthy]
+    
+    B --> D[Recibe tráfico]
+    C --> E[No recibe tráfico]
+    
+    style B fill:#c8e6c9
+    style C fill:#ffcdd2
+```
+:::
+:::
+
+---
+
+## Patrones comunes de orquestación
+
+::: {.columns}
+::: {.column width="50%}
+**1. Aplicación web tradicional:**
+```mermaid
+graph TB
+    A[Load Balancer] --> B[Web Servers]
+    B --> C[App Servers]
+    C --> D[Database]
+```
+
+**2. Microservicios:**
+```mermaid
+graph LR
+    A[API Gateway] --> B[Service A]
+    A --> C[Service B]
+    A --> D[Service C]
+```
+:::
+
+::: {.column width="50%"}
+**3. Worker queues:**
+```mermaid
+graph TB
+    A[API] --> B[Message Queue]
+    B --> C[Workers]
+```
+
+**4. Batch processing:**
+```mermaid
+graph LR
+    A[Scheduler] --> B[Batch Jobs]
+```
+:::
+:::
+
+---
+
+## Configuraciones y secretos
+
+::: {.columns}
+::: {.column width="60%}
+**Problema:** Cómo manejar configuraciones sensibles
+
+**Solución:**
+- **Configs:** Archivos de configuración no sensibles
+- **Secrets:** Información sensible (passwords, API keys)
+
+**En Swarm:**
+```yaml
+services:
+  app:
+    configs:
+      - app_config
+    secrets:
+      - db_password
+
+configs:
+  app_config:
+    file: ./config.yml
+
+secrets:
+  db_password:
+    file: ./db_password.txt
+```
+:::
+
+::: {.column width="40%"}
+```mermaid
+graph TB
+    A[Configs] --> B[Read-only en contenedores]
+    C[Secrets] --> D[Encriptados en reposo]
+    
+    style C fill:#ffebee
+```
+:::
+:::
+
+---
+
+## Buenas prácticas de orquestación
+
+**Desarrollo:**
+- Usa Compose para entorno local
+- Perfiles para diferentes configuraciones
+- Variables de entorno para diferencias entre entornos
+
+**Producción:**
+- Health checks en todos los servicios
+- Límites de recursos (CPU, memoria)
+- Estrategias de despliegue (rolling updates)
+- Logs centralizados y monitoreo
+
+**En resumen:**
+
+1. **Separa entornos**: usa `docker-compose.dev.yml`, `docker-compose.test.yml`
+2. **No expongas puertos innecesarios** al host (solo lo que necesites acceder desde fuera)
+3. **Usa nombres descriptivos** para servicios y volúmenes
+4. **Versiona tu `docker-compose.yml`** en Git (¡pero no el `.env`!)
+5. **Documenta** en comentarios lo que hace cada servicio
+
+
+---
+
+## Flujo de trabajo típico
+
+```mermaid
+graph LR
+    A[Desarrollo] --> B[Compose Local]
+    B --> C[Testing]
+    C --> D[CI/CD]
+    D --> E[Registry]
+    E --> F[Swarm Production]
+    
+    style A fill:#e1f5fe
+    style F fill:#c8e6c9
+```
+
+**Consistencia:** Misma configuración en todos los entornos
+
+---
+
+## Resumen: Docker Compose
+
+| Característica | Beneficio |
+|----------------|-----------|
+| **Archivo YAML** | Configuración versionable |
+| **Servicios** | Aplicaciones multi-contenedor |
+| **Redes automáticas** | Comunicación simplificada |
+| **Dependencias** | Orden de inicio controlado |
+
+---
+
+## Resumen: Orquestación avanzada
+
+| Concepto | Propósito |
+|----------|-----------|
+| **Docker Swarm** | Orquestación multi-host |
+| **Services** | Aplicaciones escalables |
+| **Stacks** | Deploys con Compose files |
+| **Health Checks** | Monitoreo y auto-recovery |
+
+---
+
+## Evolución natural
+
+```mermaid
+graph TB
+    A[Contenedores simples] --> B[Docker Compose]
+    B --> C[Multi-contenedor apps]
+    C --> D[Docker Swarm]
+    D --> E[Producción enterprise]
+    
+    style B fill:#e1f5fe
+    style D fill:#c8e6c9
+```
+
+**Tu viaje:** De contenedores individuales a aplicaciones complejas orquestadas
+
+---
+
+## ¡Preparados para el siguiente nivel!
+
+**Lo que hemos cubierto:**
+- Fundamentos de Docker Compose
+- Orquestación de aplicaciones multi-contenedor
+- Diferencias entre desarrollo y producción
+- Introducción a Docker Swarm
+
+---
+
+## ¿Qué sigue?
+
+- Laboratorio práctico: ¡crearemos una app con frontend, backend y base de datos!
+- Profundizaremos en:
+  - Health checks
+  - Perfiles (`profiles`)
+  - Sobrescritura de archivos (`-f`)
+  - Integración con Docker Swarm (opcional)
+
+> 🧠 Recuerda: **la orquestación empieza con entender los bloques**.  
+> ¡Y tú ya tienes los tuyos!
