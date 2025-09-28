@@ -1,0 +1,565 @@
+---
+title: "Laboratorio: Mi Primera Aplicación en Kubernetes"
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
+---
+
+# Laboratorio: Desplegando mi Primera Aplicación en Kubernetes
+
+## Objetivos de Aprendizaje
+
+Al finalizar este laboratorio, los participantes podrán:
+
+- Instalar y configurar un clúster local de Kubernetes usando Minikube
+- Utilizar `kubectl` para interactuar con el clúster
+- Crear y gestionar Deployments y Pods
+- Escalar aplicaciones y entender la autorecuperación de Kubernetes
+- Solucionar problemas comunes en un entorno local de Kubernetes
+
+## Prerrequisitos
+
+- Conocimientos básicos de línea de comandos
+- Acceso a una máquina con Windows, macOS o Linux
+- Mínimo 8GB de RAM y 20GB de espacio libre en disco
+- Conexión a Internet para descargar componentes
+
+---
+
+## Parte 1: Instalación de Minikube
+
+### Verificación de Virtualización
+
+**Linux:**
+```bash
+grep -E --color 'vmx|svm' /proc/cpuinfo
+```
+
+**Windows (PowerShell como Administrador):**
+```powershell
+systeminfo | Select-String "Virtualización"
+```
+
+**macOS:**
+```bash
+sysctl -a | grep machdep.cpu.features
+```
+
+### Instalación de VirtualBox (Linux/Windows)
+
+1. Descargar VirtualBox desde [virtualbox.org](https://www.virtualbox.org/wiki/Downloads)
+2. Instalar siguiendo el asistente del instalador
+3. Verificar la instalación: `VBoxManage --version`
+
+### Instalación de Minikube
+
+**Linux:**
+```bash
+curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+rm minikube-linux-amd64
+```
+
+**macOS (Intel):**
+```bash
+curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-darwin-amd64
+sudo install minikube-darwin-amd64 /usr/local/bin/minikube
+```
+
+**macOS (ARM - M1/M2/M3):**
+```bash
+curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-darwin-arm64
+sudo install minikube-darwin-arm64 /usr/local/bin/minikube
+```
+
+**Windows:**
+- Descargar `minikube-installer.exe` desde GitHub Releases
+- Ejecutar el instalador (se agregará automáticamente al PATH)
+
+### Iniciar el Clúster Minikube
+
+```bash
+# Para VirtualBox (Linux/Windows/Intel Mac)
+minikube start --driver=virtualbox
+
+# Para Docker (macOS ARM)
+minikube start --driver=docker
+```
+
+### Verificar la Instalación
+
+```bash
+minikube status
+minikube version
+```
+
+**💡 Desafío 1:** ¿Qué sucede si ejecutas `minikube start` sin especificar un driver? Explica por qué Minikube selecciona un driver automáticamente.
+
+---
+
+## Parte 2: Explorando el Clúster con kubectl
+
+### Instalación de kubectl
+
+Minikube incluye una versión integrada de kubectl, pero podemos instalarlo por separado:
+
+**Linux:**
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+```
+
+**Verificar la configuración:**
+```bash
+kubectl cluster-info
+kubectl get nodes
+kubectl get pods -A
+```
+
+### Comandos Básicos de Exploración
+
+```bash
+# Ver todos los recursos del clúster
+kubectl get all --all-namespaces
+
+# Ver información detallada del nodo
+kubectl describe node minikube
+
+# Ver los servicios del sistema
+kubectl get services -n kube-system
+```
+
+**🔍 Ejercicio de Troubleshooting:** Si `kubectl get nodes` muestra "No resources found", ¿cuáles podrían ser las causas y soluciones?
+
+---
+
+## Parte 3: Creando un Deployment con una Aplicación Python
+
+### Aplicación de Ejemplo: Contador de Visitas
+
+Crearemos un archivo `app.py` para nuestra aplicación:
+
+```python
+from flask import Flask
+import redis
+import os
+import socket
+
+app = Flask(__name__)
+redis_host = os.environ.get('REDIS_HOST', 'localhost')
+redis_client = redis.Redis(host=redis_host, port=6379, decode_responses=True)
+
+@app.route('/')
+def hello():
+    count = redis_client.incr('hits')
+    hostname = socket.gethostname()
+    return f'''
+    <html>
+        <body>
+            <h1>¡Hola desde Kubernetes!</h1>
+            <p>Visita número: <strong>{count}</strong></p>
+            <p>Servido por: <strong>{hostname}</strong></p>
+            <p>Redis Host: <strong>{redis_host}</strong></p>
+        </body>
+    </html>
+    '''
+
+@app.route('/health')
+def health():
+    return {'status': 'healthy'}
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
+### Crear el Dockerfile
+
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY app.py .
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]
+```
+
+### requirements.txt
+```
+Flask==2.3.3
+redis==4.6.0
+```
+
+### Construir y Publicar la Imagen
+
+```bash
+# Evaluar el entorno Docker de Minikube
+eval $(minikube docker-env)
+
+# Construir la imagen
+docker build -t python-counter-app:v1 .
+
+# Verificar la imagen
+docker images | grep python-counter-app
+```
+
+### Crear el Deployment
+
+Crear archivo `deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-counter
+  labels:
+    app: python-counter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-counter
+  template:
+    metadata:
+      labels:
+        app: python-counter
+    spec:
+      containers:
+      - name: python-counter
+        image: python-counter-app:v1
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REDIS_HOST
+          value: "localhost"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-counter-service
+spec:
+  selector:
+    app: python-counter
+  ports:
+  - port: 80
+    targetPort: 5000
+  type: LoadBalancer
+```
+
+### Aplicar el Deployment
+
+```bash
+kubectl apply -f deployment.yaml
+
+# Verificar el deployment
+kubectl get deployments
+kubectl get pods
+kubectl get services
+```
+
+**🚀 Desafío 2:** ¿Por qué el servicio no tiene una IP externa inmediatamente? ¿Cómo podemos acceder a nuestra aplicación?
+
+---
+
+## Parte 4: Escalando el Deployment
+
+### Escalar a Múltiples Réplicas
+
+```bash
+# Escalar a 3 réplicas
+kubectl scale deployment python-counter --replicas=3
+
+# Verificar los pods
+kubectl get pods -o wide
+
+# Ver detalles del deployment
+kubectl describe deployment python-counter
+```
+
+### Verificar la Distribución de Carga
+
+```bash
+# Acceder a la aplicación
+minikube service python-counter-service
+
+# Ver logs de múltiples pods
+kubectl logs -l app=python-counter --tail=10
+```
+
+**🔍 Ejercicio de Troubleshooting:** Si una de las réplicas falla al iniciar, ¿qué comandos usarías para diagnosticar el problema?
+
+---
+
+## Parte 5: Simulando Fallas y Autorecuperación
+
+### Eliminar un Pod Manualmente
+
+```bash
+# Listar pods
+kubectl get pods
+
+# Elegir un pod para eliminar
+POD_NAME=$(kubectl get pods -l app=python-counter -o jsonpath='{.items[0].metadata.name}')
+echo "Eliminando pod: $POD_NAME"
+
+# Eliminar el pod
+kubectl delete pod $POD_NAME
+
+# Observar la recreación automática
+kubectl get pods -w
+```
+
+### Verificar la Recuperación Automática
+
+```bash
+# Ver eventos del cluster
+kubectl get events --sort-by='.lastTimestamp'
+
+# Verificar que todas las réplicas estén running
+kubectl get pods -l app=python-counter
+```
+
+### Probar la Resiliencia de la Aplicación
+
+```bash
+# Acceder al servicio múltiples veces
+minikube service python-counter-service --url
+
+# Usar curl para hacer requests múltiples
+SERVICE_URL=$(minikube service python-counter-service --url)
+for i in {1..10}; do
+    curl -s $SERVICE_URL | grep "Visita número"
+    sleep 1
+done
+```
+
+**💡 Desafío 3:** ¿Cómo se mantiene el contador de visitas si los pods se reinician? ¿Qué problema identificas y cómo lo resolverías?
+
+---
+
+## Parte 6: Solución al Problema de Persistencia
+
+### Implementar Redis para Persistencia
+
+Crear `redis-deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+```
+
+### Actualizar el Deployment de la Aplicación
+
+Modificar `deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-counter
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: python-counter
+  template:
+    metadata:
+      labels:
+        app: python-counter
+    spec:
+      containers:
+      - name: python-counter
+        image: python-counter-app:v1
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REDIS_HOST
+          value: "redis-service"  # Usar el nombre del servicio
+```
+
+### Aplicar los Cambios
+
+```bash
+# Desplegar Redis
+kubectl apply -f redis-deployment.yaml
+
+# Actualizar la aplicación
+kubectl apply -f deployment.yaml
+
+# Verificar la conectividad
+kubectl get pods
+kubectl logs -l app=python-counter | grep "Redis"
+```
+
+---
+
+## Parte 7: Perfiles Avanzados de Minikube
+
+### Crear un Perfil Personalizado
+
+```bash
+# Crear cluster con perfil personalizado
+minikube start --driver=virtualbox --nodes=2 --cpus=2 --memory=4g --disk-size=20g --profile=mi-cluster
+
+# Listar perfiles
+minikube profile list
+
+# Cambiar entre perfiles
+minikube profile mi-cluster
+minikube profile minikube
+```
+
+### Desplegar en el Nuevo Perfil
+
+```bash
+# Usar el perfil personalizado
+minikube profile mi-cluster
+
+# Desplegar nuestra aplicación
+kubectl apply -f redis-deployment.yaml
+kubectl apply -f deployment.yaml
+
+# Verificar en ambos nodos
+kubectl get pods -o wide
+```
+
+---
+
+## Autoevaluación
+
+### Preguntas de Reflexión
+
+1. ¿Qué ventajas ofrece Minikube sobre otras soluciones de Kubernetes local?
+2. ¿Cómo maneja Kubernetes la alta disponibilidad de aplicaciones?
+3. ¿Qué diferencia hay entre un Deployment y un Pod?
+4. ¿Por qué es importante usar servicios en lugar de conectar directamente a los pods?
+5. ¿Cómo afecta el driver selection al performance de Minikube?
+
+### Validación de Conocimientos
+
+**Ejercicio 1:** Crea un nuevo deployment con una aplicación simple que muestre "Hola Mundo" y escálelo a 5 réplicas.
+
+**Ejercicio 2:** Simula un fallo del nodo principal y observa cómo Kubernetes responde.
+
+**Ejercicio 3:** Configura un perfil de Minikube con containerd como runtime en lugar de Docker.
+
+### Script de Validación Automática
+
+```bash
+#!/bin/bash
+echo "=== Validación del Laboratorio ==="
+
+# Verificar cluster
+echo "1. Verificando cluster..."
+minikube status > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✓ Cluster Minikube funcionando"
+else
+    echo "✗ Error: Cluster no disponible"
+fi
+
+# Verificar deployments
+echo "2. Verificando deployments..."
+kubectl get deployment python-counter > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✓ Deployment python-counter existe"
+    REPLICAS=$(kubectl get deployment python-counter -o jsonpath='{.status.readyReplicas}')
+    echo "✓ Réplicas activas: $REPLICAS"
+else
+    echo "✗ Deployment no encontrado"
+fi
+
+# Verificar servicios
+echo "3. Verificando servicios..."
+kubectl get service python-counter-service > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✓ Servicio python-counter-service existe"
+else
+    echo "✗ Servicio no encontrado"
+fi
+
+# Test de conectividad
+echo "4. Test de conectividad..."
+SERVICE_URL=$(minikube service python-counter-service --url 2>/dev/null)
+if curl -s $SERVICE_URL > /dev/null; then
+    echo "✓ Aplicación accesible"
+else
+    echo "✗ Error de conectividad"
+fi
+
+echo "=== Validación completada ==="
+```
+
+---
+
+## Limpieza
+
+```bash
+# Eliminar recursos específicos
+kubectl delete -f deployment.yaml
+kubectl delete -f redis-deployment.yaml
+
+# O eliminar todo en el namespace
+kubectl delete all --all
+
+# Parar Minikube
+minikube stop
+
+# Eliminar completamente (opcional)
+minikube delete
+```
+
+## Recursos Adicionales
+
+- [Documentación Oficial de Minikube](https://minikube.sigs.k8s.io/docs/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/home/)
+- [Kubectl Cheat Sheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
+
+---
+
+**🎉 ¡Felicidades! Has completado el laboratorio de introducción a Kubernetes con Minikube.**
