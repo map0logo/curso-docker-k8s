@@ -1,5 +1,3 @@
-quarto
-
 ---
 title: "Laboratorio: Mi Primer Contenedor"
 date: last-modified
@@ -7,9 +5,10 @@ author:
   - name: Francisco Palm
     orcid: 0000-0002-1293-0868
     email: fpalm@qu4nt.com
-    affiliations: qu4nt, activistasxsl
+    affiliations: qu4nt
 format:
-  clean-revealjs
+  html:
+    toc: true
 html-math-method:
   method: mathjax
   url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
@@ -35,7 +34,7 @@ lightbox: true
 
 Se debe ejecutar PowerShell como administrador desde el menu de Windows.
 
-```{powershell, eval=FALSE}
+```powershell
 # En PowerShell como administrador, verificar estado de WSL
 wsl --status
 
@@ -48,7 +47,7 @@ wsl --version
 
 En caso de que WSL no esté habilitado, se pueden habilitar mediante el siguiente comando:
 
-```{powershell, eval=FALSE}
+```powershell
 dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
 dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
 ```
@@ -67,7 +66,7 @@ Configurar durante la instalación:
 
 ### Verificación de la instalación
 
-```{powershell, eval=FALSE}
+```powershell
 # Verificar que Docker Desktop esté ejecutándose
 # Debería aparecer el icono de Docker en la bandeja del sistema
 
@@ -81,7 +80,7 @@ docker ps
 
 ### Despliegue de contenedor Nginx
 
-```{powershell, eval=FALSE}
+```powershell
 # Paso 1: Descargar imagen oficial de Nginx
 docker pull nginx:latest
 
@@ -99,7 +98,7 @@ docker ps
 
 ### Modificar pantalla de bienvenida de Nginx
 
-```{powershell, eval=FALSE}
+```powershell
 # 1. Crear un archivo HTML personalizado
 echo "<html><body><h1>Mi Sitio Personalizado con Docker</h1></body></html>" > index.html
 
@@ -111,7 +110,7 @@ docker cp .\index.html mi-web-server:/usr/share/nginx/html/
 
 ### Despliegue de contenedor PostgreSQL
 
-```{powershell, eval=FALSE}
+```powershell
 # Paso 1: Descargar imagen oficial de PostgreSQL
 docker pull postgres:13
 
@@ -145,7 +144,7 @@ docker exec -it mi-db psql -U usuario -d mi_base_datos
 
 ### Comandos Esenciales de Inspección
 
-```{powershell, eval=FALSE}
+```powershell
 # Ver contenedores en ejecución
 docker ps
 
@@ -167,7 +166,7 @@ docker stats
 
 ### Comandos de Gestión del Ciclo de Vida
 
-```{powershell, eval=FALSE}
+```powershell
 # Detener contenedores de forma segura
 docker stop mi-web-server mi-db
 
@@ -183,7 +182,7 @@ docker restart mi-web-server
 
 ### Ejecutar comandos dentro del contenedor
 
-```{powershell, eval=FALSE}
+```powershell
 # Explorar el sistema de archivos de Nginx
 docker exec -it mi-web-server bash
 
@@ -200,7 +199,7 @@ docker exec mi-db env | grep POSTGRES
 
 ### Eliminación Correcta de Recursos
 
-```{powershell, eval=FALSE}
+```powershell
 # Paso 1: Detener todos los contenedores
 docker stop mi-db
 
@@ -219,7 +218,7 @@ docker image prune
 
 ### Eliminar Contenedor en Ejecución
 
-```{powershell, eval=FALSE}
+```powershell
 # Forzar detención y eliminación
 docker rm -f mi-web-server
 
