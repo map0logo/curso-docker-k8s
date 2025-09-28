@@ -25,6 +25,7 @@ logo: images/qu4nt-logo.png
 
 
 **¿Te ha pasado esto?**
+
 ```bash
 docker run -d --name db -v db_data:/data mysql
 docker run -d --name web -p 80:80 --link db nginx
@@ -33,6 +34,7 @@ docker run -d --name app --link db --link web --link cache nodejs
 ```
 
 **Problemas:**
+
 - Comandos largos y complejos
 - Dependencias difíciles de gestionar
 - Orden de inicio crítico
@@ -51,8 +53,6 @@ graph TB
     style F fill:#ffebee
     style H fill:#ffebee
 ```
-:::
-:::
 
 **Solución necesaria:** Orquestación simplificada
 
@@ -64,24 +64,24 @@ uno toca la guitarra (la base de datos), otro la batería (el backend), y otro e
 
 ## ¿Qué es Docker Compose?
 
-::: {.columns}
-::: {.column width="60%"}
+
 **Definición:**
+
 - Herramienta para definir y ejecutar aplicaciones multi-contenedor
 - Usa un archivo YAML para configurar los servicios
 - Gestiona el ciclo de vida completo de la aplicación
 
 **Analogía:**
+
 - Como un "director de orquesta" para contenedores
 - Partitura (docker-compose.yml) → Música (aplicación ejecutándose)
 
 **Beneficios clave:**
+
 - Una sola command para levantar toda la app
 - Configuración versionable
 - Reproducible en cualquier entorno
-:::
 
-::: {.column width="40%"}
 ```{mermaid}
 graph TB
     A[docker-compose.yml] --> B[Docker Compose]
@@ -93,8 +93,6 @@ graph TB
     D --> F
     E --> F
 ```
-:::
-:::
 
 ---
 
@@ -148,6 +146,7 @@ volumes:
 ---
 
 ### 🔑 **Tres elementos clave**:  
+
   1. **`version`**: Versión del formato de Compose  
   2. **`services`**: Cada contenedor es un "servicio"  
   3. **Configuración por servicio**: imagen, puertos, volúmenes, dependencias...
@@ -177,8 +176,7 @@ graph TB
 
 ## Services: El corazón de Compose
 
-::: {.columns}
-::: {.column width="50%"}
+
 **¿Qué es un servicio?**
 - Definición de cómo debe ejecutarse un contenedor
 - Puede tener múltiples instancias (réplicas)
@@ -190,9 +188,8 @@ graph TB
 - `environment` y `env_file`
 - `volumes` y `networks`
 - `depends_on` para dependencias
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph LR
     A[Service Definition] --> B[1..N Instances]
@@ -202,8 +199,7 @@ graph LR
     
     style A fill:#f3e5f5
 ```
-:::
-:::
+
 
 **Ejemplo:** `web`, `api`, `database`, `cache` son servicios
 
@@ -211,22 +207,19 @@ graph LR
 
 ## Redes: ¿Cómo se comunican los contenedores?
 
-::: {.columns}
-::: {.column width="50%}
+
 **Comportamiento por defecto:**
 - Docker Compose crea una red privada para tus servicios.
 - DNS automático usando nombres de servicio
 - Tu API puede llamar a `http://db:5432` sin saber la IP.
 - Puedes definir redes personalizadas si necesitas aislar grupos de otras aplicaciones
-:::
 
-::: {.column width="50%"}
+
 **Comunicación simplificada:**
 ```yaml
 # web puede conectar a "db:5432"
 # sin conocer la IP real
 ```
-:::
 
 ```{mermaid}
 graph LR
@@ -238,7 +231,6 @@ graph LR
 ✅ Comunicación segura, sin exponer puertos al host.
 
 
-::: {.column width="50%"}
 ```{mermaid}
 graph TB
     A[compose-app_default] --> B[web]
@@ -252,32 +244,31 @@ graph TB
     
     style A fill:#e8f5e8
 ```
-:::
-:::
 
 ---
 
 ## Dependencias y orden de inicio de los servicios
 
-::: {.columns}
-::: {.column width="50%"}
+
 **`depends_on`:**
+
 - Controla el orden de inicio
 - No espera que el servicio esté "listo"
 - Solo garantiza qué se inicia después
 
 **Problema común:**
+
 - La DB se inicia, pero tarda en aceptar conexiones
 - La app falla porque intenta conectar demasiado pronto
 
 > ⚠️ **Importante**: `depends_on` **no espera a que el servicio esté "listo"**, solo que se haya iniciado.
 
 **Solución avanzada:**
+
 - Healthchecks
 - Scripts de espera personalizados
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph LR
     A[database] --> B[app]
@@ -287,6 +278,7 @@ graph LR
     style B fill:#fff9c4
     style C fill:#ffccbc
 ```
+
 ```yaml
 services:
   web:
@@ -296,16 +288,12 @@ services:
     depends_on:
       - database
 ```
-:::
-:::
-
 ---
 
 ## Variables de entorno y configuraciones
 
-::: {.columns}
-::: {.column width="50%}
 **Flexibilidad con variables:**
+
 ```yaml
 services:
   database:
@@ -329,9 +317,8 @@ Compose los carga **automáticamente** si existe un `.env` en la misma carpeta.
 - `env_file:` específico por servicio
 
 **Beneficio:** Diferentes configuraciones por entorno
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph TB
     A[.env file] --> B[Compose Interpolation]
@@ -341,21 +328,20 @@ graph TB
     style A fill:#e1f5fe
     style C fill:#f3e5f5
 ```
-:::
-:::
 
 ---
 
 ## Volúmenes y persistencia en Compose
 
-::: {.columns}
-::: {.column width="60%"}
+
 **Tipos de volúmenes:**
+
 - **Named volumes:** Gestionados por Docker
 - **Bind mounts:** Directorios del host
 - **Anonymous volumes:** Temporales
 
 **En Compose:**
+
 ```yaml
 services:
   database:
@@ -366,9 +352,7 @@ services:
 volumes:
   db_data:
 ```
-:::
 
-::: {.column width="40%"}
 ```{mermaid}
 graph TB
     A[Named Volume] --> B[Persiste entre deploys]
@@ -378,8 +362,7 @@ graph TB
     style A fill:#c8e6c9
     style C fill:#fff3e0
 ```
-:::
-:::
+
 
 🗃️ El volumen `db_data` vive **más allá** del ciclo de vida del contenedor.
 
@@ -402,24 +385,25 @@ docker-compose up --scale api=3
 
 ---
 
-::: {.columns}
-::: {.column width="50%}
+
 **Escala horizontal simple:**
+
 ```bash
 docker-compose up --scale web=3 --scale api=2
 ```
 
 **Límites:**
+
 - Compose no hace load balancing
 - Útil para desarrollo y testing
 - Producción necesita más herramientas
 
 **Caso de uso típico:**
+
 - Probar cómo se comporta la app con múltiples instancias
 - Desarrollo de características de concurrencia
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph TB
     A[web] --> B[web_1]
@@ -432,15 +416,13 @@ graph TB
     style A fill:#f3e5f5
     style E fill:#e1f5fe
 ```
-:::
-:::
+
 
 ---
 
 ## Perfiles: Organizando servicios
 
-::: {.columns}
-::: {.column width="60%"}
+
 **Para diferentes contextos:**
 ```yaml
 services:
@@ -458,13 +440,13 @@ services:
 ```
 
 **Uso:**
+
 ```bash
 docker-compose --profile frontend up
 docker-compose --profile development up
 ```
-:::
 
-::: {.column width="40%"}
+
 ```{mermaid}
 graph TB
     A[Perfiles] --> B[Development]
@@ -475,29 +457,28 @@ graph TB
     C --> F[Servicios optimizados]
     D --> G[Servicios de test]
 ```
-:::
-:::
+
 
 ---
 
 ## Docker Compose vs Docker Swarm
 
-::: {.columns}
-::: {.column width="50%}
+
 **Docker Compose:**
+
 - Single-host
 - Desarrollo y testing
 - Configuración simple
 - Comandos directos
 
 **Docker Swarm:**
+
 - Multi-host
 - Producción
 - Alta disponibilidad
 - Escalado automático
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph TB
     A[Compose] --> B[1 Host]
@@ -510,28 +491,26 @@ graph TB
     style A fill:#e1f5fe
     style D fill:#c8e6c9
 ```
-:::
-:::
 
 ---
 
 ## Introducción a Docker Swarm
 
-::: {.columns}
-::: {.column width="60%"}
+
 **¿Qué es?**
+
 - Orquestación nativa de Docker
 - Convierte múltiples hosts en un cluster
 - Gestiona despliegues, escalado, y alta disponibilidad
 
 **Conceptos clave:**
+
 - **Manager nodes:** Gestionan el cluster
 - **Worker nodes:** Ejecutan los contenedores
 - **Services:** Aplicaciones escalables
 - **Stacks:** Deploys con Compose files
-:::
 
-::: {.column width="40%"}
+
 ```{mermaid}
 graph TB
     A[Manager] --> B[Worker 1]
@@ -544,28 +523,27 @@ graph TB
     
     style A fill:#ffccbc
 ```
-:::
-:::
+
 
 ---
 
 ## Servicios en Swarm Mode
 
-::: {.columns}
-::: {.column width="50%}
+
 **Diferencias con Compose:**
+
 - Servicios distribuidos en múltiples nodos
 - Escalado automático
 - Load balancing integrado
 - Health checks y auto-recovery
 
 **Ejemplo:**
+
 ```bash
 docker service create --name web --replicas 3 nginx
 ```
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph TB
     A[Service: web] --> B[Replica 1]
@@ -578,32 +556,31 @@ graph TB
     
     style A fill:#f3e5f5
 ```
-:::
-:::
 
 ---
 
 ## Stacks: Compose en producción
 
-::: {.columns}
-::: {.column width="60%}
+
 **¿Qué son?**
+
 - Deploys de aplicaciones multi-servicio en Swarm
 - Usan archivos docker-compose.yml mejorados
 - Gestionan servicios, redes, y volúmenes en cluster
 
 **Comando:**
+
 ```bash
 docker stack deploy -c docker-compose.yml myapp
 ```
 
 **Ventajas:**
+
 - Misma configuración que desarrollo
 - Despliegue declarativo
 - Rollbacks sencillos
-:::
 
-::: {.column width="40%"}
+
 ```{mermaid}
 graph TB
     A[docker-compose.yml] --> B[Stack Deploy]
@@ -612,18 +589,17 @@ graph TB
     
     style B fill:#c8e6c9
 ```
-:::
-:::
+
 
 ---
 
 ## Health Checks en orquestación
 
-::: {.columns}
-::: {.column width="60%}
+
 **Problema:** ¿Cómo sabe el orquestador si un servicio está sano?
 
 **Solución:** Health checks
+
 ```yaml
 services:
   web:
@@ -636,11 +612,11 @@ services:
 ```
 
 **Comportamiento:**
+
 - Swarm rerutea tráfico lejos de instancias enfermas
 - Compose puede esperar a que los servicios estén listos
-:::
 
-::: {.column width="40%"}
+
 ```{mermaid}
 graph LR
     A[Health Check] --> B[✅ Healthy]
@@ -652,16 +628,14 @@ graph LR
     style B fill:#c8e6c9
     style C fill:#ffcdd2
 ```
-:::
-:::
+
 
 ---
 
 ## Patrones comunes de orquestación
 
-::: {.columns}
-::: {.column width="50%}
 **1. Aplicación web tradicional:**
+
 ```{mermaid}
 graph TB
     A[Load Balancer] --> B[Web Servers]
@@ -670,16 +644,16 @@ graph TB
 ```
 
 **2. Microservicios:**
+
 ```{mermaid}
 graph LR
     A[API Gateway] --> B[Service A]
     A --> C[Service B]
     A --> D[Service C]
 ```
-:::
 
-::: {.column width="50%"}
 **3. Worker queues:**
+
 ```{mermaid}
 graph TB
     A[API] --> B[Message Queue]
@@ -687,26 +661,26 @@ graph TB
 ```
 
 **4. Batch processing:**
+
 ```{mermaid}
 graph LR
     A[Scheduler] --> B[Batch Jobs]
 ```
-:::
-:::
 
 ---
 
 ## Configuraciones y secretos
 
-::: {.columns}
-::: {.column width="60%}
+
 **Problema:** Cómo manejar configuraciones sensibles
 
 **Solución:**
+
 - **Configs:** Archivos de configuración no sensibles
 - **Secrets:** Información sensible (passwords, API keys)
 
 **En Swarm:**
+
 ```yaml
 services:
   app:
@@ -723,9 +697,7 @@ secrets:
   db_password:
     file: ./db_password.txt
 ```
-:::
 
-::: {.column width="40%"}
 ```{mermaid}
 graph TB
     A[Configs] --> B[Read-only en contenedores]
@@ -733,19 +705,19 @@ graph TB
     
     style C fill:#ffebee
 ```
-:::
-:::
 
 ---
 
 ## Buenas prácticas de orquestación
 
 **Desarrollo:**
+
 - Usa Compose para entorno local
 - Perfiles para diferentes configuraciones
 - Variables de entorno para diferencias entre entornos
 
 **Producción:**
+
 - Health checks en todos los servicios
 - Límites de recursos (CPU, memoria)
 - Estrategias de despliegue (rolling updates)
@@ -839,4 +811,5 @@ graph TB
   - Integración con Docker Swarm (opcional)
 
 > 🧠 Recuerda: **la orquestación empieza con entender los bloques**.  
+
 > ¡Y tú ya tienes los tuyos!
