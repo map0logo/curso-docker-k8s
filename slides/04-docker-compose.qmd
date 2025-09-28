@@ -62,6 +62,22 @@ uno toca la guitarra (la base de datos), otro la batería (el backend), y otro e
 
 ---
 
+## ¿Qué es la orquestación de contenedores?
+
+### El problema del “modo manual”
+
+Cuando trabajas con múltiples contenedores:
+
+- Cada uno tiene su **propia configuración** (puertos, volúmenes, variables)
+- Necesitan **comunicarse entre sí**
+- Debes gestionar su **ciclo de vida** (iniciar, detener, reiniciar)
+- El orden de inicio **importa** (¡la DB debe estar lista antes que la app!)
+
+> 🧩 **Orquestación = automatizar la coordinación de múltiples contenedores**  
+> como si fueran una sola aplicación.
+
+---
+
 ## ¿Qué es Docker Compose?
 
 
@@ -75,6 +91,13 @@ uno toca la guitarra (la base de datos), otro la batería (el backend), y otro e
 
 - Como un "director de orquesta" para contenedores
 - Partitura (docker-compose.yml) → Música (aplicación ejecutándose)
+
+> 🎼 **Piensa en `docker-compose.yml` como una partitura musical**:
+
+> Define qué “instrumentos” (servicios) tocan, cómo se conectan y qué “notas” (configuraciones) usan.
+
+---
+
 
 **Beneficios clave:**
 
@@ -145,11 +168,11 @@ volumes:
 ```
 ---
 
-### 🔑 **Tres elementos clave**:  
+### 🔑 **Tres bloques clave**:  
 
-  1. **`version`**: Versión del formato de Compose  
-  2. **`services`**: Cada contenedor es un "servicio"  
-  3. **Configuración por servicio**: imagen, puertos, volúmenes, dependencias...
+> 1. **`services`**: tus contenedores (microservicios)
+> 2. **`volumes`**: almacenamiento persistente
+> 3. **`networks`**: cómo se comunican entre sí
 
 ---
 
@@ -174,15 +197,42 @@ graph TB
 
 ---
 
+### Cada servicio = un contenedor
+
+```yaml
+services:
+  api:
+    build: ./fastapi-app        # o 'image: mi-api:latest'
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=db
+      - DB_USER=postgres
+    depends_on:
+      - db
+    networks:
+      - app_net
+```
+
+> 💡 **Claves importantes**:
+> - **`depends_on`**: asegura que `db` se inicie antes que `api`  
+>   (¡pero no espera a que esté "listo"! Solo a que el contenedor arranque)
+> - **`DB_HOST=db`**: usa el **nombre del servicio** como hostname → ¡gracias a la red de Compose!
+
+---
+
+
 ## Services: El corazón de Compose
 
 
 **¿Qué es un servicio?**
+
 - Definición de cómo debe ejecutarse un contenedor
 - Puede tener múltiples instancias (réplicas)
 - Configuración centralizada
 
 **Configuraciones comunes:**
+
 - `image` o `build`
 - `ports` y `expose`
 - `environment` y `env_file`
@@ -209,6 +259,7 @@ graph LR
 
 
 **Comportamiento por defecto:**
+
 - Docker Compose crea una red privada para tus servicios.
 - DNS automático usando nombres de servicio
 - Tu API puede llamar a `http://db:5432` sin saber la IP.
@@ -216,6 +267,7 @@ graph LR
 
 
 **Comunicación simplificada:**
+
 ```yaml
 # web puede conectar a "db:5432"
 # sin conocer la IP real
@@ -313,10 +365,13 @@ API_KEY=abc123
 Compose los carga **automáticamente** si existe un `.env` en la misma carpeta.
 
 **Archivos de entorno:**
+
 - `.env` (automático)
 - `env_file:` específico por servicio
 
-**Beneficio:** Diferentes configuraciones por entorno
+**Beneficio:** 
+
+Diferentes configuraciones por entorno
 
 
 ```{mermaid}
@@ -424,6 +479,7 @@ graph TB
 
 
 **Para diferentes contextos:**
+
 ```yaml
 services:
   frontend:
@@ -790,14 +846,79 @@ graph TB
 **Tu viaje:** De contenedores individuales a aplicaciones complejas orquestadas
 
 ---
+## Flujo de trabajo ideal con Compose
 
-## ¡Preparados para el siguiente nivel!
+```mermaid
+flowchart LR
+  A[Editar docker-compose.yml] --> B[docker-compose up -d]
+  B --> C[Desarrollar y probar]
+  C --> D[docker-compose logs -f]
+  D --> E[Debuggear con docker-compose exec]
+  E --> F[docker-compose down]
+  F -->|Opcional| G[docker-compose down -v\n(borra volúmenes)]
+```
 
-**Lo que hemos cubierto:**
-- Fundamentos de Docker Compose
-- Orquestación de aplicaciones multi-contenedor
-- Diferencias entre desarrollo y producción
-- Introducción a Docker Swarm
+> 🔄 **Es un ciclo rápido, repetible y consistente** → perfecto para equipos.
+
+---
+
+## Buenas prácticas con Docker Compose
+
+### 1. Usa `depends_on` con cuidado
+
+- Solo controla el **orden de inicio**, no la “disponibilidad” del servicio.
+- Para esperar a que una DB esté lista, usa scripts de `healthcheck` o herramientas como `wait-for-it`.
+
+### 2. Nombra tus recursos
+
+- Compose genera nombres como `miapp_db_1` → pero si defines `container_name`, pierdes escalabilidad.
+- **Mejor no usar `container_name`** → deja que Compose gestione los nombres.
+
+### 3. Separa entornos
+
+- Usa `.env` para variables sensibles o por entorno:
+  ```env
+  DB_PASSWORD=supersecreto
+  API_PORT=8000
+  ```
+- Referéncialas en `docker-compose.yml` con `${DB_PASSWORD}`
+
+> 🧼 **Mantén tu `docker-compose.yml` limpio, declarativo y versionable**.
+
+---
+
+## ¿Qué NO hacer con Compose?
+
+| ❌ Mal | ✅ Bien |
+|--------|--------|
+| Usar `container_name` innecesariamente | Dejar que Compose gestione nombres |
+| Hardcodear contraseñas en el YAML | Usar variables de entorno o archivos `.env` |
+| Olvidar `depends_on` cuando el orden importa | Definir dependencias explícitas |
+| Usar Compose en producción sin considerar alternativas | Usar Compose solo para desarrollo/local |
+
+> ⚠️ **Compose es para desarrollo/local** → en producción, considera Kubernetes, Swarm o plataformas cloud.
+
+---
+
+## Resumen visual: Tu stack en un solo archivo
+
+```{mermaid}
+graph TD
+  ComposeFile["docker-compose.yml"] --> ServicioAPI["api:\n  build: ./fastapi\n  ports: [8000:8000]\n  environment:\n    - DB_HOST=db"]
+  ComposeFile --> ServicioDB["db:\n  image: postgres\n  volumes:\n    - db_data:/var/lib..."]
+  ComposeFile --> ServicioPGAdmin["pgadmin:\n  image: dpage/pgadmin4\n  ports: [8080:80]"]
+  ServicioAPI --> Red["Red: default (creada por Compose)"]
+  ServicioDB --> Red
+  ServicioPGAdmin --> Red
+  ServicioDB --> Volumen["Volumen: db_data"]
+```
+
+> ✅ **Con un solo archivo**:
+
+> - Definiste **3 servicios**  
+> - Configuraste **red automática**  
+> - Añadiste **persistencia**  
+> - Expusiste **puertos controlados**
 
 ---
 
@@ -812,4 +933,3 @@ graph TB
 
 > 🧠 Recuerda: **la orquestación empieza con entender los bloques**.  
 
-> ¡Y tú ya tienes los tuyos!
