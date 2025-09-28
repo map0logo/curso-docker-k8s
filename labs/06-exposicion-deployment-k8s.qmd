@@ -1,0 +1,633 @@
+---
+title: "Laboratorio: Configuración y Exposición de un Deployment en Kubernetes"
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html:
+    toc: true
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
+---
+
+## Objetivos del Laboratorio
+
+En este laboratorio práctico, aprenderás a:
+
+1. **Configurar** aplicaciones usando ConfigMaps y Secrets
+2. **Exponer** servicios dentro y fuera del clúster Kubernetes
+3. **Implementar** buenas prácticas de seguridad y configuración
+4. **Solucionar problemas** comunes en despliegues Kubernetes
+
+## Prerrequisitos
+
+### Software Requerido
+
+```bash
+# Verificar instalaciones previas
+kubectl version --client
+minikube version
+docker --version
+```
+
+### Configuración del Entorno
+
+```bash
+# Iniciar cluster local con Minikube
+minikube start --driver=docker --cpus=2 --memory=4096
+
+# Verificar estado del cluster
+kubectl cluster-info
+kubectl get nodes
+```
+
+## Parte 1: Preparación de la Aplicación FastAPI
+
+### Aplicación Base - FastAPI Simple
+
+Crea un archivo `app.py` con el siguiente contenido:
+
+```python
+from fastapi import FastAPI, HTTPException
+import os
+import uvicorn
+
+app = FastAPI(title="Laboratorio Kubernetes")
+
+# Variables de configuración (serán inyectadas desde Kubernetes)
+DB_URL = os.getenv("DB_URL", "localhost:5432")
+DB_USER = os.getenv("DB_USER", "usuario_default")
+API_KEY = os.getenv("API_KEY", "key_default")
+
+@app.get("/")
+async def root():
+    return {
+        "message": "¡Aplicación FastAPI en Kubernetes!",
+        "db_url": DB_URL,
+        "db_user": DB_USER,
+        "status": "healthy"
+    }
+
+@app.get("/config")
+async def show_config():
+    """Endpoint para mostrar configuración (solo para desarrollo)"""
+    return {
+        "db_url": DB_URL,
+        "db_user": DB_USER,
+        "api_key": "***"  # No mostrar clave real
+    }
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "fastapi-app"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+### Dockerfile para la Aplicación
+
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+EXPOSE 8000
+
+CMD ["python", "app.py"]
+```
+
+**requirements.txt:**
+```
+fastapi==0.104.1
+uvicorn==0.24.0
+```
+
+## Parte 2: Construcción y Despliegue Inicial
+
+### Ejercicio 2.1: Construir y Publicar la Imagen
+
+```bash
+# Construir la imagen Docker
+docker build -t fastapi-lab:v1 .
+
+# Etiquetar para Minikube
+minikube image load fastapi-lab:v1
+
+# Verificar imagen cargada
+minikube image ls | grep fastapi
+```
+
+### Ejercicio 2.2: Despliegue Básico sin Configuración
+
+Crea el archivo `deployment-basico.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-app
+  labels:
+    app: fastapi
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fastapi
+  template:
+    metadata:
+      labels:
+        app: fastapi
+    spec:
+      containers:
+      - name: fastapi-container
+        image: fastapi-lab:v1
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DB_URL
+          value: "localhost:5432"  # Hardcodeado - ¡MAL!
+        - name: DB_USER  
+          value: "admin"
+        - name: API_KEY
+          value: "clave-insegura"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-service
+spec:
+  selector:
+    app: fastapi
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
+```
+
+**Aplicar el despliegue:**
+
+```bash
+kubectl apply -f deployment-basico.yaml
+
+# Verificar estado
+kubectl get pods -l app=fastapi
+kubectl get services
+```
+
+### ❌ Problema Identificado: Configuración Hardcodeada
+
+**Pregunta de Reflexión:** ¿Qué problemas de seguridad y mantenibilidad identificas en este despliegue inicial?
+
+## Parte 3: Implementación de ConfigMaps y Secrets
+
+### Ejercicio 3.1: Crear ConfigMap para Configuración No Sensible
+
+Crea `configmap.yaml`:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  db.url: "postgresql://db-service.production.svc.cluster.local:5432"
+  app.environment: "production"
+  log.level: "INFO"
+  api.timeout: "30"
+```
+
+### Ejercicio 3.2: Crear Secret para Información Sensible
+
+Crea `secret.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+data:
+  # Los valores deben estar en base64
+  db.password: cGFzc3dvcmQxMjM=  # "password123" en base64
+  api.key: bXlTZWNyZXRLZXk=      # "mySecretKey" en base64
+  jwt.secret: c3VwZXJTZWNyZXQ=   # "superSecret" en base64
+```
+
+**Comando para generar valores base64:**
+```bash
+echo -n "tu-contraseña" | base64
+```
+
+### Ejercicio 3.3: Aplicar Configuración
+
+```bash
+kubectl apply -f configmap.yaml
+kubectl apply -f secret.yaml
+
+# Verificar creación
+kubectl get configmaps
+kubectl get secrets
+```
+
+## Parte 4: Deployment Mejorado con Configuración Externa
+
+### Ejercicio 4.1: Crear Deployment con ConfigMaps y Secrets
+
+Crea `deployment-mejorado.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-app-mejorado
+  labels:
+    app: fastapi
+    version: "v2"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fastapi
+      version: "v2"
+  template:
+    metadata:
+      labels:
+        app: fastapi
+        version: "v2"
+    spec:
+      containers:
+      - name: fastapi-container
+        image: fastapi-lab:v1
+        ports:
+        - containerPort: 8000
+        env:
+        # Variables desde ConfigMap
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: db.url
+        - name: APP_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: app.environment
+        # Variables desde Secret
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db.password
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: api.key
+        # Variables combinadas
+        - name: DATABASE_URL
+          value: "postgresql://user:$(DB_PASSWORD)@db-service:5432/mydb"
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+```
+
+### Ejercicio 4.2: Aplicar y Verificar
+
+```bash
+kubectl apply -f deployment-mejorado.yaml
+
+# Verificar diferencias
+kubectl get pods -l app=fastapi
+
+# Verificar variables de entorno en los pods
+kubectl exec -it $(kubectl get pod -l app=fastapi,version=v2 -o jsonpath='{.items[0].metadata.name}') -- env | grep DB
+```
+
+## Parte 5: Exposición de la Aplicación
+
+### Ejercicio 5.1: Service ClusterIP (Comunicación Interna)
+
+Crea `service-clusterip.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-internal
+spec:
+  selector:
+    app: fastapi
+    version: "v2"
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+```
+
+### Ejercicio 5.2: Service NodePort (Acceso Externo Básico)
+
+Crea `service-nodeport.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-nodeport
+spec:
+  selector:
+    app: fastapi
+    version: "v2"
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+      nodePort: 30080
+  type: NodePort
+```
+
+### Ejercicio 5.3: Probar Diferentes Tipos de Service
+
+```bash
+# Aplicar servicios
+kubectl apply -f service-clusterip.yaml
+kubectl apply -f service-nodeport.yaml
+
+# Ver servicios
+kubectl get services
+
+# Probar acceso interno
+kubectl run test-pod --image=busybox --rm -it --restart=Never -- wget -qO- http://fastapi-internal:8000/
+
+# Probar acceso externo (NodePort)
+minikube service fastapi-nodeport --url
+```
+
+## Parte 6: Configuración Avanzada con Volúmenes
+
+### Ejercicio 6.1: ConfigMap como Volumen
+
+Crea `deployment-volumen.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-with-volume
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fastapi-volume
+  template:
+    metadata:
+      labels:
+        app: fastapi-volume
+    spec:
+      containers:
+      - name: fastapi-container
+        image: fastapi-lab:v1
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/app-config
+          readOnly: true
+        env:
+        - name: CONFIG_PATH
+          value: "/etc/app-config"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: app-config
+          items:
+          - key: db.url
+            path: database.url
+          - key: app.environment
+            path: environment
+```
+
+## Parte 7: Ejercicios de Troubleshooting
+
+### Desafío 7.1: Identificar y Corregir Errores
+
+**Escenario:** Un desarrollador reporta que su aplicación no puede conectarse a la base de datos. El error muestra: `"DB_URL: localhost:5432"` en lugar de la URL configurada.
+
+**Archivo con error (`deployment-error.yaml`):**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-error
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fastapi-error
+  template:
+    metadata:
+      labels:
+        app: fastapi-error
+    spec:
+      containers:
+      - name: fastapi-container
+        image: fastapi-lab:v1
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config-no-existe  # ERROR: ConfigMap incorrecto
+              key: db.url
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: key-inexistente  # ERROR: Key incorrecta
+```
+
+**Tareas:**
+1. Identifica al menos 3 errores en el archivo
+2. Corrige los errores
+3. Aplica el deployment corregido
+4. Verifica que la aplicación funcione correctamente
+
+### Desafío 7.2: Debug de Servicios
+
+**Problema:** El servicio NodePort no es accesible externamente.
+
+**Comandos de diagnóstico:**
+```bash
+# 1. Verificar endpoints del servicio
+kubectl get endpoints fastapi-nodeport
+
+# 2. Verificar selectores del servicio vs labels de pods
+kubectl describe service fastapi-nodeport
+kubectl get pods --show-labels
+
+# 3. Verificar logs de los pods
+kubectl logs -l app=fastapi,version=v2
+
+# 4. Probar conectividad interna
+kubectl run debug-pod --image=nicolaka/netshoot --rm -it --restart=Never -- /bin/bash
+# Dentro del pod: curl http://fastapi-internal:8000/
+```
+
+## Parte 8: Validación y Pruebas
+
+### Script de Validación Automática
+
+Crea `validate-lab.sh`:
+
+```bash
+#!/bin/bash
+
+echo "=== Validación del Laboratorio Kubernetes ==="
+
+# Verificar pods running
+echo "1. Verificando pods..."
+POD_COUNT=$(kubectl get pods -l app=fastapi --no-headers | grep Running | wc -l)
+if [ $POD_COUNT -ge 2 ]; then
+    echo "✅ Pods running: $POD_COUNT"
+else
+    echo "❌ Error: Solo $POD_COUNT pods running"
+fi
+
+# Verificar servicios
+echo "2. Verificando servicios..."
+SERVICE_COUNT=$(kubectl get services -l app=fastapi --no-headers | wc -l)
+if [ $SERVICE_COUNT -ge 1 ]; then
+    echo "✅ Servicios creados: $SERVICE_COUNT"
+else
+    echo "❌ Error: No hay servicios creados"
+fi
+
+# Verificar configuración
+echo "3. Verificando ConfigMap..."
+kubectl get configmap app-config > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✅ ConfigMap existe"
+else
+    echo "❌ Error: ConfigMap no existe"
+fi
+
+# Verificar secret
+echo "4. Verificando Secret..."
+kubectl get secret app-secrets > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✅ Secret existe"
+else
+    echo "❌ Error: Secret no existe"
+fi
+
+# Test de conectividad
+echo "5. Probando conectividad..."
+kubectl run test-connectivity --image=busybox --rm -it --restart=Never -- wget -qO- http://fastapi-internal:8000/health > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✅ Conectividad interna OK"
+else
+    echo "❌ Error: No hay conectividad interna"
+fi
+
+echo "=== Validación completada ==="
+```
+
+## Parte 9: Preguntas de Autoevaluación
+
+### Preguntas Teóricas
+
+1. **¿Cuál es la diferencia principal entre un ConfigMap y un Secret?**
+   - a) Los ConfigMap almacenan datos binarios, los Secrets texto plano
+   - b) Los Secrets están encriptados, los ConfigMap no
+   - c) Los ConfigMap son para desarrollo, los Secrets para producción
+   - d) Los Secrets se almacenan en base64, los ConfigMap en texto plano
+
+2. **¿Qué tipo de Service usarías para comunicación entre microservicios dentro del mismo cluster?**
+   - a) LoadBalancer
+   - b) NodePort  
+   - c) ClusterIP
+   - d) ExternalName
+
+3. **¿Qué problema resuelve principalmente un Deployment en Kubernetes?**
+   - a) Almacenamiento persistente
+   - b) Gestión del ciclo de vida de aplicaciones
+   - c) Balanceo de carga externo
+   - d) Encriptación de datos
+
+### Preguntas Prácticas
+
+4. **Si modificas un ConfigMap, ¿los pods que lo usan se actualizan automáticamente?**
+   - a) Sí, inmediatamente
+   - b) No, hay que reiniciar los pods manualmente
+   - c) Depende de cómo esté montado (volumen vs variables de entorno)
+   - d) Solo si se usa un operator especial
+
+5. **¿Cuál es el puerto range válido para servicios NodePort?**
+   - a) 1-1024
+   - b) 1025-32767
+   - c) 30000-32767
+   - d) Cualquier puerto disponible
+
+## Soluciones Esperadas
+
+### Respuestas a Preguntas Teóricas:
+1. d) Los Secrets se almacenan en base64, los ConfigMap en texto plano
+2. c) ClusterIP
+3. b) Gestión del ciclo de vida de aplicaciones
+
+### Respuestas a Preguntas Prácticas:
+4. c) Depende de cómo esté montado (volumen vs variables de entorno)
+5. c) 30000-32767
+
+## Limpieza (Opcional)
+
+```bash
+# Eliminar recursos creados
+kubectl delete deployment,service,configmap,secret -l app=fastapi
+
+# Eliminar todo en el namespace
+kubectl delete all --all
+
+# Parar Minikube
+minikube stop
+```
+
+## Conclusión
+
+En este laboratorio has aprendido a:
+
+✅ **Configurar aplicaciones** usando ConfigMaps y Secrets de forma segura  
+✅ **Exponer servicios** con diferentes tipos de Service según las necesidades  
+✅ **Implementar buenas prácticas** de configuración y seguridad  
+✅ **Diagnosticar problemas** comunes en despliegues Kubernetes  
+✅ **Validar configuraciones** con scripts automatizados  
+
+**Próximo paso:** Experimenta modificando los valores de configuración y observa cómo afecta el comportamiento de la aplicación sin necesidad de reconstruir la imagen Docker.
