@@ -34,7 +34,7 @@ logo: images/qu4nt-logo.png
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TD
     A[Contenedor MySQL] --> B[Datos en capa escribible]
     B --> C[¡Contenedor eliminado!]
@@ -99,7 +99,7 @@ Esto incluye:
 
 ::: {.columns}
 ::: {.column width="60%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Imagen Base] --> B[Capa 1: SO]
     A --> C[Capa 2: Aplicación]
@@ -127,7 +127,7 @@ graph TB
 
 ## Tipos de almacenamiento en Docker
 
-```mermaid
+```{mermaid}
 graph LR
     A[Almacenamiento Docker] --> B[Bind Mounts]
     A --> C[Volumes]
@@ -163,7 +163,7 @@ Un **Volume** es un directorio **gestionado por Docker** fuera del ciclo de vida
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Contenedor A] --> C[Volume MySQL]
     B[Contenedor B] --> C
@@ -173,7 +173,7 @@ graph TB
     E --> F[Sobrevive a reinicios]
 ```
 
-```mermaid
+```{mermaid}
 graph LR
   Container["Contenedor"] -->|escribe| Volume["Docker Volume"]
   Volume -->|persiste| Disco["Disco del Host"]
@@ -223,7 +223,7 @@ docker volume rm mi-db-data
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph LR
     A[/home/usuario/proyecto] --> B[Contenedor App]
     C[/etc/config] --> B
@@ -232,7 +232,7 @@ graph LR
     style C fill:#fff3e0
 ```
 
-```mermaid
+```{mermaid}
 graph LR
   HostDir["/home/usuario/proyecto"] -->|montado en| Container["/app"]
   Container --> App["App ve los archivos en tiempo real"]
@@ -267,7 +267,7 @@ graph LR
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Memoria RAM] --> B[tmpfs mount]
     B --> C[Contenedor]
@@ -309,7 +309,7 @@ graph TB
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph LR
     A[🌐 Internet] --> B[¿Cómo llego?]
     C[Contenedor Web] --> D[Contenedor DB]
@@ -324,7 +324,7 @@ graph LR
 
 ## Arquitectura de red por defecto
 
-```mermaid
+```{mermaid}
 graph TB
     A[Host Machine] --> B[Docker Engine]
     B --> C[Docker Daemon]
@@ -347,7 +347,7 @@ graph TB
 
 ## Tipos de redes en Docker
 
-```mermaid
+```{mermaid}
 graph TB
     A[Tipos de Red] --> B[Bridge]
     A --> C[Host]
@@ -394,7 +394,7 @@ docker run -d nginx
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Bridge Network] --> B[Contenedor Web:80]
     A --> C[Contenedor DB:3306]
@@ -426,7 +426,7 @@ graph TB
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph LR
     A[Contenedor] --> B[eth0 del Host]
     B --> C[🌐 Internet]
@@ -456,7 +456,7 @@ graph LR
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph LR
     A[webapp] --> B[Resuelve: database]
     B --> C[DNS Docker]
@@ -472,7 +472,7 @@ graph LR
 
 ## Escenario práctico: Aplicación web + Base de datos
 
-```mermaid
+```{mermaid}
 graph TB
     A[Usuario] --> B[Puerto 80:8080]
     B --> C[Contenedor Web]
@@ -494,13 +494,13 @@ graph TB
 ::: {.columns}
 ::: {.column width="50%"}
 **1. Web → API → Database**
-```mermaid
+```{mermaid}
 graph LR
     A[Frontend] --> B[Backend API]
     B --> C[Database]
 ```
 **2. Microservicios**
-```mermaid
+```{mermaid}
 graph TB
     A[API Gateway] --> B[Servicio Users]
     A --> C[Servicio Orders]
@@ -558,7 +558,7 @@ graph TB
 
 ## Patrón final: Aplicación completa
 
-```mermaid
+```{mermaid}
 graph TB
     A[🌐 Internet] --> B[Load Balancer]
     B --> C[Web Server 1]
@@ -607,7 +607,7 @@ ping db  # ¡Funciona!
 
 ### Opción 1: Usar un **volume compartido**
 
-```mermaid
+```{mermaid}
 graph LR
   Volume[(datos-compartidos)] --> Contenedor1
   Volume --> Contenedor2
@@ -660,7 +660,7 @@ Ambos montan el mismo volumen → ven los mismos archivos.
 
 ## Resumen visual
 
-```mermaid
+```{mermaid}
 graph LR
   Host -->|Bind Mount| Container1
   DockerEngine -->|Volume| Container2

@@ -23,8 +23,7 @@ logo: images/qu4nt-logo.png
 
 ## El problema: Aplicaciones multi-contenedor
 
-::: {.columns}
-::: {.column width="50%"}
+
 **¿Te ha pasado esto?**
 ```bash
 docker run -d --name db -v db_data:/data mysql
@@ -38,10 +37,9 @@ docker run -d --name app --link db --link web --link cache nodejs
 - Dependencias difíciles de gestionar
 - Orden de inicio crítico
 - Configuración dispersa
-:::
 
-::: {.column width="50%"}
-```mermaid
+
+```{{mermaid}}
 graph TB
     A[MySQL] --> B[¿Inició primero?]
     C[Redis] --> D[¿Depende de MySQL?]
@@ -84,7 +82,7 @@ uno toca la guitarra (la base de datos), otro la batería (el backend), y otro e
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[docker-compose.yml] --> B[Docker Compose]
     B --> C[Redes]
@@ -158,7 +156,7 @@ volumes:
 
 ## Conceptos fundamentales de Compose
 
-```mermaid
+```{mermaid}
 graph TB
     A[Compose Concepts] --> B[Services]
     A --> C[Networks]
@@ -195,7 +193,7 @@ graph TB
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph LR
     A[Service Definition] --> B[1..N Instances]
     B --> C[Container 1]
@@ -230,7 +228,7 @@ graph LR
 ```
 :::
 
-```mermaid
+```{mermaid}
 graph LR
   A[Frontend] -->|http://api:3000| B(API)
   B -->|db:5432| C[(Base de Datos)]
@@ -241,7 +239,7 @@ graph LR
 
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TB
     A[compose-app_default] --> B[web]
     A --> C[app]
@@ -280,7 +278,7 @@ graph TB
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph LR
     A[database] --> B[app]
     B --> C[web]
@@ -334,7 +332,7 @@ Compose los carga **automáticamente** si existe un `.env` en la misma carpeta.
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TB
     A[.env file] --> B[Compose Interpolation]
     C[env_file:] --> B
@@ -371,7 +369,7 @@ volumes:
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Named Volume] --> B[Persiste entre deploys]
     C[Bind Mount] --> D[Desarrollo]
@@ -422,7 +420,7 @@ docker-compose up --scale web=3 --scale api=2
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TB
     A[web] --> B[web_1]
     A --> C[web_2]
@@ -467,7 +465,7 @@ docker-compose --profile development up
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Perfiles] --> B[Development]
     A --> C[Production]
@@ -500,7 +498,7 @@ graph TB
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Compose] --> B[1 Host]
     B --> C[App Completa]
@@ -534,7 +532,7 @@ graph TB
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Manager] --> B[Worker 1]
     A --> C[Worker 2]
@@ -568,7 +566,7 @@ docker service create --name web --replicas 3 nginx
 :::
 
 ::: {.column width="50%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Service: web] --> B[Replica 1]
     A --> C[Replica 2]
@@ -606,7 +604,7 @@ docker stack deploy -c docker-compose.yml myapp
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[docker-compose.yml] --> B[Stack Deploy]
     B --> C[Swarm Cluster]
@@ -643,7 +641,7 @@ services:
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph LR
     A[Health Check] --> B[✅ Healthy]
     A --> C[❌ Unhealthy]
@@ -664,7 +662,7 @@ graph LR
 ::: {.columns}
 ::: {.column width="50%}
 **1. Aplicación web tradicional:**
-```mermaid
+```{mermaid}
 graph TB
     A[Load Balancer] --> B[Web Servers]
     B --> C[App Servers]
@@ -672,7 +670,7 @@ graph TB
 ```
 
 **2. Microservicios:**
-```mermaid
+```{mermaid}
 graph LR
     A[API Gateway] --> B[Service A]
     A --> C[Service B]
@@ -682,14 +680,14 @@ graph LR
 
 ::: {.column width="50%"}
 **3. Worker queues:**
-```mermaid
+```{mermaid}
 graph TB
     A[API] --> B[Message Queue]
     B --> C[Workers]
 ```
 
 **4. Batch processing:**
-```mermaid
+```{mermaid}
 graph LR
     A[Scheduler] --> B[Batch Jobs]
 ```
@@ -728,7 +726,7 @@ secrets:
 :::
 
 ::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Configs] --> B[Read-only en contenedores]
     C[Secrets] --> D[Encriptados en reposo]
@@ -766,7 +764,7 @@ graph TB
 
 ## Flujo de trabajo típico
 
-```mermaid
+```{mermaid}
 graph LR
     A[Desarrollo] --> B[Compose Local]
     B --> C[Testing]
@@ -806,7 +804,7 @@ graph LR
 
 ## Evolución natural
 
-```mermaid
+```{mermaid}
 graph TB
     A[Contenedores simples] --> B[Docker Compose]
     B --> C[Multi-contenedor apps]
