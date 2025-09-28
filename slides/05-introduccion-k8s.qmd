@@ -15,3 +15,767 @@ html-math-method:
 lang: es
 logo: images/qu4nt-logo.png
 ---
+
+# Módulo 7: Introducción a Kubernetes
+
+## El Monolito: Una Roca de 1000 Toneladas
+
+### ¿Qué es un Monolito?
+
+Imagina una aplicación de software como una roca gigante de 1000 toneladas.
+
+- **Todo en uno**: Todo el código de la aplicación está en un solo bloque.
+- **Un solo lenguaje**: Normalmente escrito en un solo lenguaje de programación (a veces anticuado).
+- **Arquitectura única**: Basado en patrones de arquitectura de software que pueden estar obsoletos.
+
+## El Monolito
+
+```{mermaid}
+graph TD
+    A[Monolito] --> B[Lógica de Negocio A]
+    A --> C[Lógica de Negocio B]
+    A --> D[Lógica de Negocio C]
+    A --> E[Base de Datos Única]
+    B --> F[Servidor Único]
+    C --> F
+    D --> F
+    E --> F
+```
+
+> En el monolito, la lógica de negocio y la base de datos se encuentran en un **mismo servidor**. Por lo tanto, comparten la **misma memoria** y el **mismo espacio de almacenamiento**. **Cualquier cambio** en cualquiera de estos componentes requiere una **actualización de todo el monolito**.
+
+## Características del Monolito
+
+- **Crecimiento Continuo**: Cada nueva característica añade más código, aumentando la complejidad.
+- **Tiempos de Compilación Largos**: Compilar y construir la aplicación lleva cada vez más tiempo.
+- **Facilidad Administrativa (Relativa)**: Se ejecuta en un solo servidor (Máquina Virtual o Mainframe).
+
+---
+
+## Los Problemas de la Roca Gigante
+
+### 1. Costo de Hardware
+
+- **Sistema Único y Poderoso**: El monolito necesita un servidor muy grande y costoso para satisfacer todos sus requisitos (CPU, memoria, almacenamiento).
+- **Complejo y Costoso**: Este hardware no solo es caro, sino a veces difícil de conseguir.
+
+### 2. Escalabilidad Limitada
+
+- **Escala Todo o Nada**: No puedes escalar solo la parte de la aplicación que tiene mucha demanda. Tienes que escalar **todo** el monolito.
+- **Solución Costosa**: Esto significa desplegar una nueva instancia completa en otro servidor, normalmente detrás de un balanceador de carga caro.
+
+## Los Problemas de la Roca Gigante 2
+
+### 3. Mantenimiento y Actualizaciones
+
+```{mermaid}
+graph LR
+    U[Usuarios] --> LB[Balanceador de Carga<br>Muy Caro]
+    LB --> M1[Instancia Monolito 1<br>Servidor Grande]
+    LB --> M2[Instancia Monolito 2<br>Servidor Grande]
+```
+
+- **Tiempo de Inactividad (Downtime)**: Las actualizaciones, parches o migraciones requieren detener toda la aplicación.
+- **Ventanas de Mantenimiento**: Hay que planificar con mucho tiempo estas interrupciones porque afectan a todos los clientes.
+- **Alta Disponibilidad Compleja**: Configuraciones activo/pasivo son posibles pero añaden complejidad y costos de licencias.
+
+---
+
+## Las Piedras: Microservicios al Rescate
+
+### ¿Qué son los Microservicios?
+
+Si el monolito es una roca de 1000 toneladas, los microservicios son **piedras**.
+
+- **Piezas Pequeñas y Manejables**: Cada piedra (microservicio) realiza una función de negocio específica.
+- **Acoplados Débilmente (Loosely Coupled)**: Son independientes y se comunican entre sí a través de APIs.
+
+## Las Piedras: Microservicios al Rescate 2
+
+```{mermaid}
+graph TD
+    U[Cliente] --> G[API Gateway]
+
+    G --> MS1[Microservicio A<br>Gestión de Usuarios]
+    G --> MS2[Microservicio B<br>Catálogo de Productos]
+    G --> MS3[Microservicio C<br>Procesar Pedidos]
+
+    MS1 --> DB1[Base de Datos A]
+    MS2 --> DB2[Base de Datos B]
+    MS3 --> DB3[Base de Datos C]
+```
+
+## Beneficios de las Piedras (en lugar de LA Roca Gigante)
+
+1.  **Despliegue Independiente**: Cada servicio se puede desplegar en un servidor pequeño con solo los recursos que necesita. ¡Más barato!
+2.  **Flexibilidad Tecnológica**: Cada microservicio puede estar escrito en el lenguaje de programación más adecuado para su función.
+3.  **Escalabilidad Granular**: ¿El servicio de pedidos está saturado? Puedes escalar solo ese servicio, no toda la aplicación.
+4.  **Actualizaciones Sin Interrupciones**: Se actualiza un servicio a la vez. Los demás siguen funcionando. ¡No hay downtime!
+
+---
+
+## La Gran Transformación: Refactorización
+
+### El Dilema: ¿Cómo Partir la Roca?
+
+Las empresas con aplicaciones monolíticas antiguas se enfrentan a un desafío: **refactorizar**.
+
+**Refactorizar** significa reestructurar el código existente sin cambiar su comportamiento externo. Es como esculpir las piedras a partir de la roca gigante.
+
+## Refactorización: Dos Enfoques Principales 1
+
+### 1. Big-Bang (Gran Explosión)
+
+- **Parar el Mundo**: Se detiene el desarrollo de nuevas funciones.
+- **Esfuerzo Total**: Todo el equipo se centra en refactorizar el monolito completo de una vez.
+- **Alto Riesgo**: Puede paralizar el negocio y, si falla, el daño es enorme.
+
+```{mermaid}
+graph LR
+    A[Monolito] -->|Refactorización Masiva| B[Nuevo Sistema de Microservicios]
+```
+
+## Refactorización: Dos Enfoques Principales 2
+
+### 2. Refactorización Incremental (Recomendado)
+
+- **Transición Gradual**: Se extraen funciones del monolito una por una, convirtiéndolas en microservicios.
+- **Nuevas Características como Microservicios**: Las nuevas funciones se desarrollan directamente como microservicios que se comunican con el monolito mediante APIs.
+- **El Monolito se Desvanece**: Poco a poco, el monolito se hace más pequeño hasta desaparecer.
+
+## Refactorización Incremental
+
+```{mermaid}
+graph TB
+    subgraph A ["Fase 1"]
+        M1[Monolito Grande] --> MS1[Nuevo Microservicio A]
+    end
+    subgraph B ["Fase 2"]
+        M2[Monolito Mediano] --> MS2[Microservicio Refactorizado B]
+    end
+    subgraph C ["Fase 3"]
+        M3[Monolito Pequeño] --> MS3[Microservicio Refactorizado C]
+    end
+    M1 --> M2
+    M2 --> M3
+    M3 --> M4[Monolito Desaparece]
+
+    style A fill:#FFFFFF
+    style B fill:#FFFFFF 
+    style C fill:#FFFFFF
+```
+
+---
+
+## Desafíos en el Camino
+
+### ¿Es Mi Monolito un Buen Candidato?
+
+- **Lenguajes Muy Antiguos (COBOL, Assembler)**: A veces es más económico reescribir la aplicación desde cero.
+- **Diseño Pobre**: Si la aplicación original está mal diseñada, refactorizarla puede ser peor que reconstruirla.
+- **Acoplamiento Fuerte con la Base de Datos**: Separar la lógica de los datos puede ser muy difícil.
+
+## El Desafío de la Ejecución
+
+Si despliegas muchos microservicios en un mismo servidor, sus bibliotecas y entornos de ejecución pueden entrar en conflicto.
+
+**Solución Necesaria**: Se necesita una forma de aislar cada microservicio para que funcione de forma independiente y sin conflictos.
+
+**El Héroe: Los Contenedores de Aplicaciones**
+
+### La solución a los desafíos de la refactorización
+
+Los contenedores llegaron para salvar el día. Son **entornos de ejecución ligeros y encapsulados** para aplicaciones.
+
+## Los Contenedores
+
+```{mermaid}
+graph TB
+    S[Servidor Físico/Virtual] --> OS[Sistema Operativo]
+    OS --> CE[Motor de Contenedores]
+
+    subgraph C ["Contenedores Aislados"]
+        CE --> C1[Contenedor A<br>Microservicio A<br>Librerías Propias]
+        CE --> C2[Contenedor B<br>Microservicio B<br>Librerías Propias]
+        CE --> C3[Contenedor C<br>Microservicio C<br>Librerías Propias]
+    end
+
+    style C fill:#FFFFFF
+```
+
+## ¿Por qué los Contenedores son Geniales?
+
+- **Aislamiento**: Cada microservicio corre en su propio contenedor, evitando conflictos de librerías.
+- **Ligereza**: Los contenedores comparten el sistema operativo del host, por lo que consumen muchos menos recursos que una máquina virtual completa.
+- **Portabilidad**: Un contenedor se ejecuta igual en tu portátil, en un servidor de prueba o en la nube.
+- **Alta Utilización**: Puedes ejecutar muchos contenedores en un mismo servidor, aprovechando mejor el hardware.
+
+## De los monolitos a los microservicios
+
+El viaje del monolito a los microservicios es un proceso de modernización crucial. Aunque presenta desafíos, un enfoque incremental apoyado por tecnologías como los contenedores permite transformar una "roca" rígida y costosa en un conjunto ágil y flexible de "piedras" listas para la nube.
+
+[Casos de éxito](https://kubernetes.io/case-studies/)
+
+[El caso de Wikimedia](https://kubernetes.io/case-studies/wikimedia/)
+
+## ¿Qué es Kubernetes (K8s)?
+
+**¡Imagina que eres el director de una gran orquesta!** 🎻
+
+Kubernetes es como ese director que:
+
+- Sabe qué instrumentos (contenedores) necesitas
+- Los coloca en el lugar correcto
+- Asegura que toquen en armonía
+- Reemplaza músicos si se enferman
+- Escala la orquesta según el tamaño del auditorio
+
+## Definición formal
+
+Sistema de orquestación de contenedores de código abierto que automatiza:
+
+- Despliegue
+- Escalado
+- Gestión de aplicaciones en contenedores
+
+**¿Por qué "K8s"?**
+
+K-u-b-e-r-n-e-t-e-s (8 letras en medio) → ¡Ahorramos tiempo!
+
+---
+
+## El Problema que Resuelve Kubernetes
+
+```{mermaid}
+graph LR
+    A[**Aplicación Monolítica**] --> B[Problemas: Escala difícil, Fallo único]
+    B --> C[Microservicios en Contenedores]
+    C --> D["Nuevos Problemas
+    Orquestación compleja"]
+    D --> E[**Kubernetes al Rescate!**]
+    
+    style A fill:#f9f,stroke:#333
+    style E fill:#9f9,stroke:#333
+```
+
+**Antes de Kubernetes:**
+
+- "¡Se cayó un contenedor! ¿Quién lo reinicia?"
+- "¿Cómo distribuyo la carga entre mis 50 contenedores?"
+- "Necesito actualizar sin downtime... ¿magia?"
+
+**Con Kubernetes:**
+- "Dime lo que quieres, yo me encargo del cómo"
+
+
+## ¿Por qué Kubernetes?
+
+Antes de K8s, gestionar contenedores era como...
+
+- 🧱 **Construir una casa ladrillo por ladrillo**, sin plano.
+- 🔧 **Reiniciar manualmente** cada contenedor si fallaba.
+- 📦 **Dificultad para escalar**: ¿Necesitas 10 copias de tu app? ¡A copiar y pegar!
+
+## Con Kubernetes
+
+Usando Kubernetes, la gestion de contenedores obtiene...
+
+- 🤖 **Automatización**: El sistema se encarga de mantener tu app en el estado deseado.
+- 📈 **Escalado automático**: Aumenta o reduce réplicas según la carga.
+- 🔄 **Actualizaciones sin caídas**: Despliega nuevas versiones sin que tus usuarios lo noten.
+
+---
+
+## Arquitectura de Kubernetes: La Gran Foto
+
+```{mermaid}
+graph
+    subgraph Cluster [**Kubernetes Cluster**]
+        direction TB
+        style Cluster fill:#fff,stroke:#333
+    
+        subgraph N1 [**Nodo 1**]
+            direction LR
+            style N1 fill:#fff,stroke:#333
+            F[Kubelet] --> Q
+            G[Kube-proxy] --> Q
+
+            subgraph Q [**CRI**]
+                direction TB
+                style Q fill:#fff,stroke:#333
+                P3[Pod 1]
+                P4[Pod m]
+            end
+        end
+        subgraph N2 [**Nodo 2**]
+            direction LR
+            style N2 fill:#fff,stroke:#333
+            I[Kubelet] --> P
+            K[Kube-proxy] --> P
+            subgraph P [**CRI**]
+                direction TB
+                style P fill:#fff,stroke:#333
+                P1[Pod 1]
+                P2[Pod n]
+            end
+        end
+
+        subgraph CP [**Control Plane**]
+            direction TB
+            style CP fill:#fff,stroke:#333
+            A[API Server] --> |Almacena estado| B[Etcd] 
+            C[Scheduler] --> |Asigna pods a nodos| A
+            D[Controller Manager] --> |Controla procesos| A
+        end
+
+        F --> |Comunica con| A
+        G -.-> A
+        I --> |Comunica con| A
+        K -.-> A
+    end
+    
+```
+---
+
+## **Control Plane** El Cerebro del Clúster 1
+
+**API Server** [kube-apiserver](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/)
+
+*¡El recepcionista!*
+
+- Única interfaz para comunicarse con el cluster
+- Valida y procesa todas las solicitudes
+- "¿Quieres hablar con Kubernetes? Habla conmigo primero"
+
+
+## **Control Plane** El Cerebro del Clúster 2
+
+**Scheduler** [kube-scheduler](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/)
+
+*¡El agente de asignación!*
+
+- Observa pods sin nodo asignado
+- Encuentra el nodo perfecto basado en:
+  - Recursos necesarios
+  - Políticas
+  - Restricciones
+
+
+## **Control Plane** El Cerebro del Clúster 3
+
+**Controller Manager** [kube-controller-manager](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/)
+
+*¡El supervisor obsesivo!*
+
+- Controla que la realidad coincida con lo deseado
+- "¿Dijiste 3 réplicas? Voy a verificar... sí, son 3. Espera, ahora son 2! ¡Creo otra!"
+
+## **Control Plane** El Cerebro del Clúster 4
+
+**Etcd** [etcd.io](https://etcd.io)
+
+*La memoria del cluster*
+
+- Base de datos clave-valor que guarda TODO el estado del cluster
+- Lee y escribe usando herramientas HTTP estándar
+- Vigila claves y directorios específicos por cambios y reacciona a los cambios
+
+---
+
+## **Nodos** Los Trabajadores 1
+
+**Kubelet** [kubelet](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/)
+
+*¡El capataz del nodo!*
+
+- Agente que corre en CADA nodo
+- Recibe órdenes del Control Plane
+- Se asegura que los contenedores estén sanos
+- "¡Sí jefe! Los contenedores están corriendo perfectamente"
+
+
+## **Nodos** Los Trabajadores 2
+
+**Kube-proxy** [kube-proxy](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-proxy/)
+
+*¡El director de tráfico!*
+
+- Maneja la red dentro del nodo
+- Enruta el tráfico a los contenedores correctos
+- "¿Buscas el servicio web? Por aquí, por favor"
+
+## **Nodos** Los Trabajadores 3
+
+**Container Runtime:** [containerd.io](https://containerd.io)
+
+*¡El jefe de cuadrilla!*
+
+- Docker, containerd, etc.
+- El que realmente ejecuta los contenedores
+- La comunicación entre el Kubelet y el Container Runtime se hace mediante el **CRI** (Container Runtime Interface)
+
+# Namespaces y Objetos
+
+## Introducción a `kubectl`
+
+**`kubectl` = Kubernetes Control Tool**
+
+- `kubectl` es la **CLI** (interfaz de línea de comandos) para interactuar con el clúster.
+- Se comunica con el **API Server** del Control Plane mediante YAML o comandos.
+
+**Tu varita mágica para controlar Kubernetes** ✨
+
+
+## Introducción a `kubectl` 2
+
+Comandos básicos:
+
+- `kubectl get pods` - "¿Qué pods tienes?"
+- `kubectl create deployment` - "Crea esto"
+- `kubectl describe pod` - "Cuéntame todo sobre este pod"
+
+Si escribes varios comandos en un archivo, puedes ejecutarlos con:
+
+- `kubectl apply -f archivo.yaml` - "Haz lo que dice este archivo"
+
+---
+
+## Namespaces: Departamentos en un Edificio
+
+Imagina un edificio de oficinas:
+
+- Cada empresa (equipo/proyecto) tiene su **piso** (Namespace).
+- Pueden tener un "servidor web" llamado `frontend`, pero **no chocan** porque están en pisos distintos.
+- ¡Evitas el caos de nombres y recursos compartidos!
+
+```{mermaid}
+graph TB
+    subgraph Cluster[Clúster de Kubernetes]
+        direction TB
+        style Cluster fill:#ffffff
+    subgraph Namespace1[dev]
+        style Namespace1 fill:#FFE5B8
+        Pod1[Pod: frontend]
+        Pod2[Pod: db]
+        style Pod1 fill:#ffffff
+        style Pod2 fill:#ffffff
+    end
+    subgraph Namespace2[prod]
+        style Namespace2 fill:#FFE5B8
+        Pod3[Pod: frontend]
+        Pod4[Pod: db]
+        style Pod3 fill:#ffffff
+        style Pod4 fill:#ffffff
+    end
+    subgraph Namespace3[monitoring]
+        style Namespace3 fill:#FFE5B8
+        Pod5[Pod: prometheus]
+        Pod6[Pod: grafana]
+        style Pod5 fill:#ffffff
+        style Pod6 fill:#ffffff
+    end
+    end
+```
+
+## ¿Por qué namespaces?
+
+- **Aislamiento:** Equipo desarrollo vs producción
+- **Organización:** Como carpetas para tus recursos
+- **Cuotas:** Límites de recursos por namespace
+- **Acceso:** Permisos diferentes por namespace
+
+
+> 🛡️ **Namespaces aíslan recursos lógicamente**, no físicamente. ¡No son contenedores dentro de contenedores!
+
+
+---
+
+## El Sistema de Etiquetas
+
+**Imagina que organizas tu biblioteca personal:**
+
+- **Labels**: Etiquetas clave-valor que **tú asignas** a cualquier objeto.
+  - Ej: `app=web`, `env=prod`, `tier=frontend`
+- **Selectors**: Consultas que **usan esas etiquetas** para encontrar objetos.
+
+### Labels (Etiquetas)
+```yaml
+# Un Pod con labels
+metadata:
+  labels:
+    app: frontend-web
+    environment: production
+    team: blue-team
+    version: 2.1.0
+```
+**Son como post-its** en tus recursos
+
+## El Sistema de Etiquetas 2
+
+### Selectors (Selectores)
+```yaml
+spec:
+  selector:
+    matchLabels:
+      app: frontend-web
+      environment: production
+```
+**Son como búsquedas** para encontrar recursos
+
+**Ejemplo práctico:** "Encuentra todos los pods del 'frontend-web' en 'producción'"
+
+
+> 🧩 **Labels y Selectors son como el sistema de clasificación de una biblioteca**:  
+> “Dame todos los libros (Pods) con la etiqueta `género=scifi`”.
+
+---
+
+## Pods: La Unidad Mínima de Despliegue
+
+```{mermaid}
+graph TD
+    A[Pod] --> B[Contenedor Principal]
+    A --> C[Contenedor Auxiliar]
+    A --> D[Volumen Compartido]
+    A --> E[IP Única]
+    
+    B --> F[App Web]
+    C --> G[Sidecar Logger]
+```
+
+**¡Un pod no es un contenedor! Es la "cápsula" que contiene contenedores**
+
+> 🤝 **Regla de oro**: Un Pod = una **unidad lógica de aplicación**.  
+> Normalmente, **1 contenedor por Pod** (a menos que necesiten cooperar estrechamente).
+
+## Pods: La Unidad Mínima de Despliegue 2
+
+**Características clave:**
+
+- Unidad de escalado mínima: es el **objeto más pequeño** que puedes crear en K8s.
+- Comparten:
+  - Red (Dirección IP)
+  - Volúmenes de almacenamiento
+  - Namespace de red
+- Efímeros: Nacen, viven, mueren
+
+## Pods: La Unidad Mínima de Despliegue 3
+
+**¿Cuándo múltiples contenedores?**
+
+- Aplicación + sidecar helper
+- Web server + file sync
+- App + proxy de monitoreo
+- **Regla:** Deben necesitar compartir recursos
+
+---
+
+## Anatomía de un Pod
+
+```yaml
+apiVersion: v1
+kind: Pod                    # ← Tipo de objeto
+metadata:                    # ← Identificación
+  name: mi-pod-maravilloso
+  labels:
+    app: web-server
+    environment: test
+spec:                        # ← Especificación deseada
+  containers:
+  - name: nginx-container    # ← Contenedor 1
+    image: nginx:1.19
+    ports:
+    - containerPort: 80
+  - name: logger-sidecar     # ← Contenedor 2
+    image: busybox
+    command: ['sh', '-c', 'while true; do echo logging; sleep 10; done']
+```
+
+**Piensa en el Pod como la unidad atómica de tu aplicación**
+
+---
+
+## Deployments: El Planificador Inteligente {.smaller}
+
+::: {.columns}
+::: {.column width="60%"}
+```{mermaid}
+graph TB
+    A[Deployment YAML] --> B[Controlador de Deployment]
+    B <--> C[Estado Deseado: 3 Réplicas]
+    C --> D[ReplicaSet]
+    D --> E[Pod 1]
+    D --> F[Pod 2]
+    D --> G[Pod 3]
+    B -.-> H
+    H[Pod 2 Falló] --> |Detecta| D
+    D -.-> |Crea| J[Pod 4]
+    J ~~~ E
+    J ~~~ F
+    J ~~~ G
+    style H stroke:#f00
+    style J stroke:#f00
+```
+:::
+
+::: {.column width="40%"}
+
+**¿Por qué no usar Pods directamente?**
+
+- Permite **patrones avanzados** (sidecar, ambassador, adapter).
+- Proporciona un **nivel de abstracción** para la red y almacenamiento.
+- Facilita la **gestión de ciclos de vida**.
+
+> ⚠️ **Los Pods son efímeros**: pueden morir y renacer en otro nodo. ¡Nunca confíes en su IP!
+
+:::
+
+:::
+
+---
+
+## La Magia de los Deployments
+
+### Escalado Automático
+```yaml
+spec:
+  replicas: 3    # ← "Quiero 3 copias corriendo"
+```
+**Kubernetes:** "Vigilo que siempre haya 3 saludables"
+
+### ¿Qué hace un Deployment?
+
+1. **Crea y gestiona ReplicaSets** (que a su vez gestionan Pods).
+2. **Permite actualizaciones controladas** (rolling updates).
+3. **Permite retroceder** (rollbacks) si algo falla.
+
+## Actualizaciones Controladas y Retroceder 
+
+**Rolling Update:**
+
+1. Crea Pod v2.1
+2. Elimina Pod v2.0
+3. Repite hasta todos actualizados
+4. **¡Los usuarios ni se enteran!**
+
+**Rollback Automático:**
+
+- "La nueva versión falla"
+- "¡Vuelve a la anterior versión!"
+- **Un comando:** `kubectl rollout undo`
+
+## Ejemplo de Deployment Completo
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  labels:
+    app: frontend
+spec:
+  replicas: 3                    # ← Quiero 3 copias
+  selector:
+    matchLabels:
+      app: frontend              # ← Esto controla el ReplicaSet
+  template:                      # ← Plantilla para crear Pods
+    metadata:
+      labels:
+        app: frontend            # ← ¡Estas labels deben coincidir!
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.20
+        ports:
+        - containerPort: 80
+```
+
+---
+
+## Flujo de un Deployment
+
+```{mermaid}
+sequenceDiagram
+    participant You as Tú
+    participant kubectl
+    participant API as API Server
+    participant Deploy as Deployment Controller
+    participant RS as ReplicaSet
+    participant Pods
+
+    You->>kubectl: kubectl apply -f deployment.yaml
+    kubectl->>API: Crea Deployment
+    API->>Deploy: Notifica nuevo Deployment
+    Deploy->>RS: Crea ReplicaSet
+    RS->>Pods: Crea Pods (según réplicas)
+    Pods-->>RS: Reportan estado
+    RS-->>Deploy: Reporta estado
+    Deploy-->>API: Actualiza estado del Deployment
+```
+
+> 🎯 **El Deployment no toca los Pods directamente**: delega en el ReplicaSet.
+
+
+
+## Tu trabajo como desarrollador/operador
+
+1. Definir el **estado deseado** (YAML)
+2. Decirle a Kubernetes: "¡Haz que esto sea realidad!"
+3. Kubernetes se encarga del **cómo**
+
+Est quiere decir que la configuración es **declarativa**.
+
+---
+
+## Patrones Mentales para Recordar
+
+**Kubernetes es Declarativo**
+
+### Tú dices QUÉ quieres, no CÓMO
+
+Mal: "Crea un pod, espera, ahora otro..."
+Bien: "Quiero 3 pods corriendo esta app"
+
+**Todo se Conecta con Labels**
+
+### Como un sistema de archivos con etiquetas
+
+- Deployments encuentran Pods via labels
+- Services encuentran Pods via labels
+
+## Patrones Mentales para Recordar 2
+
+**Los Pods son Efímeros**
+
+### No te encariñes con ellos
+
+- Nacen y mueren constantemente
+- Tu aplicación debe ser stateless-ready
+- El storage persistente va aparte
+
+**Los Controllers Mantienen el Estado**
+
+### Son loops infinitos verificando
+
+- "¿Coincide la realidad con lo deseado?"
+- "Si no, ¡tomo acción!"
+
+---
+
+## Próximos Pasos
+
+**Hoy aprendiste los fundamentos:**
+
+- ✅ Arquitectura de Kubernetes
+- ✅ Namespaces y organización
+- ✅ Pods (la unidad atómica)
+- ✅ Deployments (gestión inteligente)
+
+## En el laboratorio práctico
+
+- 🎯 Crearás tu primer cluster local
+- 🎯 Desplegarás aplicaciones reales
+- 🎯 Experimentarás con escalado
+- 🎯 Practicarás actualizaciones sin downtime
+
+**¡Prepárate para la acción!** 🚀
