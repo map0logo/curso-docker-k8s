@@ -1,0 +1,246 @@
+quarto
+
+---
+title: "Laboratorio: Mi Primer Contenedor"
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt, activistasxsl
+format:
+  clean-revealjs
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
+---
+
+# Laboratorio: Mi Primer Contenedor
+
+## Objetivos de Aprendizaje
+
+- Instalar y configurar Docker Desktop
+- Desplegar contenedores básicos (Nginx, PostgreSQL)
+- Gestionar el ciclo de vida de contenedores
+- Utilizar comandos esenciales de Docker
+- Solucionar problemas comunes
+
+## 1. Instalación de Docker Desktop
+
+### Instalación de WSL2
+
+Se debe ejecutar PowerShell como administrador desde el menu de Windows.
+
+```{powershell, eval=FALSE}
+# En PowerShell como administrador, verificar estado de WSL
+wsl --status
+
+# Si no está instalado o da un error de "archivo no encontrado", habilitar WSL
+wsl --install
+
+# Verificar versión de WSL
+wsl --version
+```
+
+En caso de que WSL no esté habilitado, se pueden habilitar mediante el siguiente comando:
+
+```{powershell, eval=FALSE}
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+```
+
+### Instalación de Docker Desktop
+
+Descargar Docker Desktop desde https://docs.docker.com/desktop/setup/install/windows-install/
+
+Ejecutar el instalador, de nombre "Docker Desktop Installer.exe"
+
+Configurar durante la instalación:
+
+- Asegurarse que está habilitado "Use WSL 2 instead of Hyper-V"
+- Agregar shortcut al escritorio
+- Reiniciar el equipo cuando se solicite
+
+### Verificación de la instalación
+
+```{powershell, eval=FALSE}
+# Verificar que Docker Desktop esté ejecutándose
+# Debería aparecer el icono de Docker en la bandeja del sistema
+
+# Abrir PowerShell como administrador y verificar comandos
+docker --version
+docker-compose --version
+docker ps
+```
+
+## 2. Desplegar Contenedores
+
+### Despliegue de contenedor Nginx
+
+```{powershell, eval=FALSE}
+# Paso 1: Descargar imagen oficial de Nginx
+docker pull nginx:latest
+
+# Paso 2: Verificar la imagen descargada
+docker images
+
+# Paso 3: Ejecutar contenedor en segundo plano con mapeo de puertos
+docker run -d --name mi-web-server -p 8080:80 nginx
+
+# Paso 4: Verificar estado del contenedor
+docker ps
+
+# Paso 5: Acceder desde navegador - abrir http://localhost:8080
+```
+
+### Modificar pantalla de bienvenida de Nginx
+
+```{powershell, eval=FALSE}
+# 1. Crear un archivo HTML personalizado
+echo "<html><body><h1>Mi Sitio Personalizado con Docker</h1></body></html>" > index.html
+
+# 2. Copiar archivo al contenedor anteriormente creado
+docker cp .\index.html mi-web-server:/usr/share/nginx/html/
+
+# 3. Recargar pagina y verificar en http://localhost:8080
+```
+
+### Despliegue de contenedor PostgreSQL
+
+```{powershell, eval=FALSE}
+# Paso 1: Descargar imagen oficial de PostgreSQL
+docker pull postgres:13
+
+# Paso 2: Ejecutar contenedor con configuración de base de datos
+docker run -d --name mi-db `
+  -e POSTGRES_DB=mi_base_datos `
+  -e POSTGRES_USER=usuario `
+  -e POSTGRES_PASSWORD=contraseña123 `
+  -p 5432:5432 `
+  postgres:13
+
+# Paso 3: Verificar que el contenedor esté ejecutándose
+docker ps
+
+# Paso 4: Revisar logs para confirmar inicialización
+docker logs mi-db
+
+# Paso 5: Conectarse a la base de datos usando psql
+docker exec -it mi-db psql -U usuario -d mi_base_datos
+
+# Dentro de psql, ejecutar comandos de prueba:
+# \l - listar bases de datos
+# \dt - listar tablas (debe estar vacío inicialmente)
+# CREATE TABLE prueba (id SERIAL, nombre VARCHAR(50));
+# INSERT INTO prueba (nombre) VALUES ('test desde Docker');
+# SELECT * FROM prueba;
+# \q - salir
+```
+
+## 3. Gestión y Monitoreo de Contenedores
+
+### Comandos Esenciales de Inspección
+
+```{powershell, eval=FALSE}
+# Ver contenedores en ejecución
+docker ps
+
+# Ver todos los contenedores (incluyendo detenidos)
+docker ps -a
+
+# Ver logs de un contenedor específico
+docker logs mi-web-server
+
+# Ver logs en tiempo real (seguimiento)
+docker logs -f mi-db
+
+# Inspeccionar detalles completos del contenedor
+docker inspect mi-web-server
+
+# Ver consumo de recursos en tiempo real
+docker stats
+```
+
+### Comandos de Gestión del Ciclo de Vida
+
+```{powershell, eval=FALSE}
+# Detener contenedores de forma segura
+docker stop mi-web-server mi-db
+
+# Ver estado después de detener
+docker ps -a
+
+# Iniciar contenedores detenidos
+docker start mi-web-server mi-db
+
+# Reiniciar contenedores
+docker restart mi-web-server
+```
+
+### Ejecutar comandos dentro del contenedor
+
+```{powershell, eval=FALSE}
+# Explorar el sistema de archivos de Nginx
+docker exec -it mi-web-server bash
+
+# Dentro del contenedor:
+# ls /usr/share/nginx/html/
+# cat /etc/nginx/nginx.conf
+# exit
+
+# Ver variables de entorno de PostgreSQL
+docker exec mi-db env | grep POSTGRES
+```
+
+## 4. Limpieza Segura de Contenedores
+
+### Eliminación Correcta de Recursos
+
+```{powershell, eval=FALSE}
+# Paso 1: Detener todos los contenedores
+docker stop mi-db
+
+# Paso 2: Eliminar contenedores
+docker rm mi-db
+
+# Paso 3: Verificar eliminación
+docker ps -a
+
+# Paso 4: Listar imágenes descargadas
+docker images
+
+# Opcional: Eliminar imágenes no utilizadas
+docker image prune
+```
+
+### Eliminar Contenedor en Ejecución
+
+```{powershell, eval=FALSE}
+# Forzar detención y eliminación
+docker rm -f mi-web-server
+
+# Limpieza completa del sistema
+docker system prune -abrir
+```
+
+## 📋 Preguntas de Autoevaluación
+
+### Conocimientos Básicos
+
+- ¿Qué diferencia hay entre docker stop y docker rm?
+- ¿Cómo persisten los datos en PostgreSQL cuando reiniciamos el contenedor?
+- ¿Qué significa el parámetro -p 8080:80 en docker run?
+
+### Troubleshooting
+
+- Si un contenedor no inicia, ¿qué comando usarías para diagnosticar el problema?
+- ¿Cómo verificarías el consumo de recursos de tus contenedores?
+
+### Aplicación Práctica
+
+- ¿Qué pasos seguirías para hacer backup de la base de datos PostgreSQL?
+- ¿Cómo configurarías un contenedor para que inicie automáticamente con el sistema?
