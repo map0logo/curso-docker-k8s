@@ -15,3 +15,820 @@ html-math-method:
 lang: es
 logo: images/qu4nt-logo.png
 ---
+
+# Almacenamiento Persistente en Kubernetes
+
+## Manejo de datos en aplicaciones con estado
+
+---
+
+## El desafío: Aplicaciones con estado en Kubernetes
+
+**Problema inicial:**
+- Los Pods en K8s son efímeros
+- Cuando un Pod muere, se crea uno nuevo
+- Su filesystem local desaparece
+- ¡Perfecto para aplicaciones stateless!
+
+**Pero... ¿y las bases de datos?**
+- PostgreSQL, MySQL, MongoDB...
+- Necesitan persistir datos
+- Los datos deben sobrevivir a los reinicios
+- Cada instancia necesita su propio almacenamiento
+
+
+```{mermaid}
+graph TB
+    A[Pod PostgreSQL] --> B[Datos locales]
+    C[💥 Pod eliminado] --> D[Nuevo Pod creado]
+    D --> E[📭 Datos perdidos]
+    
+    style E fill:#ffebee
+```
+
+
+**Necesitamos:** Almacenamiento que sobreviva al ciclo de vida del Pod
+
+---
+
+## Volúmenes en Kubernetes: El concepto fundamental
+
+
+**¿Qué es un Volume en K8s?**
+
+- Directorio accesible a los contenedores en un Pod
+- Diferentes tipos de backend de almacenamiento
+- Puede persistir más allá del ciclo de vida del contenedor (`persistentVolumeClaim`) o ser efímero (`emptyDir`)
+- Puede estar respaldado por disco local, NFS, cloud storage, etc.
+
+> ⚠️ **Pero… un Volume por sí solo no es suficiente para persistencia real**.  
+> Se necesita **PersistentVolumes** y **PersistentVolumeClaims**.
+
+Por defecto, cada contenedor en un Pod tiene un **disco efímero**:
+
+- Se crea al iniciar el Pod.
+- Se destruye al eliminar el Pod.
+- No es compartible entre Pods.
+
+> 🧠 **Esto está bien para apps sin estado (stateless)**,  
+> pero **¡es un desastre para bases de datos!**
+
+
+**Analogía:**
+
+- Como un "disco USB" que conectas a tu Pod
+- El Pod puede leer y escribir datos
+- El "USB" puede desconectarse y reconectarse a otro Pod
+
+**Característica clave:** El volumen vive mientras el Pod viva
+
+```{mermaid}
+graph LR
+    A[Storage Backend] --> B[Volume]
+    B --> C[Pod]
+    C --> D[Contenedores]
+    
+    style B fill:#e1f5fe
+```
+
+---
+
+## Tipos de Volúmenes en Kubernetes
+
+```{mermaid}
+graph TB
+    A[Tipos de Volume] --> B[Ephemeral<br/>Temporales]
+    A --> C[Persistent<br/>Persistentes]
+    
+    B --> D[emptyDir]
+    B --> E[hostPath]
+    
+    C --> F[nfs]
+    C --> G[cloudStorage]
+    C --> H[cephfs]
+    C --> I[etc]
+    
+    style B fill:#ffebee
+    style C fill:#c8e6c9
+```
+
+**¡Cuidado con hostPath!** No es portable entre nodos
+
+---
+
+## El problema de los Volúmenes simples
+
+
+**Limitaciones:**
+
+- El volumen está vinculado al Pod
+- Si el Pod se elimina, el volumen también
+- No reusable entre Pods
+- Dificulta la alta disponibilidad
+
+**Escenario problemático:**
+
+```{mermaid}
+graph LR
+    A[Pod A] --> B[Volume A]
+    C[Pod B] --> D[Volume B]
+    
+    E[💥 Pod A muere] --> F[❌ Volume A perdido]
+```
+**Necesitamos:** Desacoplar el almacenamiento del ciclo de vida del Pod
+
+
+```{mermaid}
+graph TB
+    A[Problema] --> B[Acoplamiento<br/>Pod-Volume]
+    B --> C[Sin portabilidad]
+    C --> D[Sin reutilización]
+    
+    style B fill:#ffcdd2
+```
+
+---
+
+## La solución: PersistentVolumes (PV) y PersistentVolumeClaims (PVC)
+
+
+**Arquitectura de dos niveles:**
+
+**PersistentVolume (PV):**
+
+- Recurso de almacenamiento en el cluster
+- Como un "disco físico" disponible tiene tamaño, clase, modo de acceso (`ReadWriteOnce`, `ReadOnlyMany`, etc.).
+- Administrado por el cluster administrator
+- Existe **independientemente de los Pods**.
+
+> 💾 **Ejemplos de backends**:  
+> - AWS EBS  
+> - GCP Persistent Disk  
+> - Azure Disk  
+> - NFS  
+> - Local SSD (con `local` volume)
+
+**PersistentVolumeClaim (PVC):**
+
+- Solicitud de almacenamiento por un usuario
+- Como "quiero 10GB de disco"
+- Kubernetes encuentra un PV que coincida
+
+
+```{mermaid}
+graph TB
+    A[Administrador] --> B[PersistentVolume]
+    C[Usuario/App] --> D[PersistentVolumeClaim]
+    D --> E[Binding]
+    E --> B
+    
+    style B fill:#e1f5fe
+    style D fill:#c8e6c9
+```
+
+---
+
+## PersistentVolumeClaim (PVC): La solicitud de almacenamiento
+
+### ¿Qué es una PVC?
+
+Una **PersistentVolumeClaim** es una **solicitud de almacenamiento** hecha por un usuario o aplicación.
+
+- Especifica **tamaño**, **clase de almacenamiento** y **modo de acceso**.
+- Kubernetes **enlaza automáticamente** la PVC a un PV compatible.
+- Se usa en el Pod como un Volume.
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+meta
+  name: db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+> 🧩 **Piensa en la PVC como un “ticket”**:  
+> “Necesito 10 GiB de disco rápido, por favor”.
+
+---
+
+## ¿Cómo se enlazan PV y PVC?
+
+### El emparejamiento automático
+
+Kubernetes **empareja PVCs con PVs** basado en:
+
+- **Tamaño solicitado** (el PV debe ser ≥)
+- **Modo de acceso**
+- **StorageClass** (si se especifica)
+
+```{mermaid}
+flowchart LR
+  PVC1["PVC: 5Gi, RWO"] -->|enlazada a| PV1["PV: 10Gi, RWO"]
+  PVC2["PVC: 20Gi, RWO"] -->|esperando| SinPV["Sin PV disponible"]
+```
+
+> ✅ **Una vez enlazada, la relación es 1:1 y exclusiva**.  
+> Nadie más puede usar ese PV.
+
+---
+
+## StorageClasses: Aprovisionamiento dinámico
+
+### ¿Por qué necesitamos StorageClasses?
+
+Crear PVs manualmente **no escala**.  
+En la nube, queremos que el almacenamiento se cree **automáticamente** al solicitarlo.
+
+> 🚀 **StorageClass = receta para crear PVs bajo demanda**
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+meta
+  name: ssd-fast
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  encrypted: "true"
+```
+
+> 💡 **Cuando una PVC especifica una `storageClassName`**,  
+> Kubernetes **crea un PV automáticamente** usando esa clase.
+
+---
+
+## Ciclo de vida de PV y PVC
+
+```{mermaid}
+graph LR
+    A[Provisioning] --> B[Available]
+    B --> C[Bound]
+    C --> D[Released]
+    D --> E[Available]
+    D --> F[Failed]
+    
+    G[PVC Created] --> H[Pending]
+    H --> I[Bound]
+    I --> J[Deleted]
+    
+    C --> G
+    I --> A
+    
+    style A fill:#fff3e0
+    style C fill:#c8e6c9
+    style I fill:#c8e6c9
+```
+
+> ✅ **El disco persiste más allá del ciclo de vida del Pod**.
+---
+
+## Creando un PersistentVolume (Ejemplo)
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fast
+  hostPath:
+    path: /data/postgres
+```
+
+**Configuraciones clave:**
+
+- `capacity`: Tamaño del almacenamiento
+- `accessModes`: Cómo se puede acceder (ReadWriteOnce, ReadOnlyMany, ReadWriteMany)
+- `reclaimPolicy`: Qué pasa cuando se libera (Retain, Delete, Recycle)
+
+---
+
+## Solicitud de almacenamiento: PersistentVolumeClaim
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  storageClassName: fast
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+**El PVC pide:**
+
+- Al menos 5GB de almacenamiento
+- Tipo de acceso ReadWriteOnce (un nodo puede escribir)
+- StorageClass "fast"
+
+---
+
+## Usando el PVC en un Pod
+
+
+**Vinculación en el Pod:**
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: postgres-pod
+spec:
+  containers:
+  - name: postgres
+    image: postgres:13
+    volumeMounts:
+    - name: postgres-storage
+      mountPath: /var/lib/postgresql/data
+  volumes:
+  - name: postgres-storage
+    persistentVolumeClaim:
+      claimName: postgres-pvc
+```
+
+```{mermaid}
+graph TB
+    A[Pod] --> B[Volume]
+    B --> C[PVC Reference]
+    C --> D[PV Binding]
+    D --> E[Actual Storage]
+    
+    style C fill:#fff9c4
+```
+
+
+**Magia:** El Pod usa el PVC, Kubernetes encuentra el PV adecuado
+
+---
+
+## StorageClasses: Provisión dinámica
+
+
+**Problema con PVs estáticos:**
+
+- El administrador debe crear PVs manualmente
+- Puede haber falta o exceso de almacenamiento
+- No escalable
+
+**Solución: StorageClasses**
+
+- Provisión automática de PVs bajo demanda
+- Diferentes "clases" de almacenamiento (fast, slow, ssd, hdd)
+- Integración con cloud providers
+
+```{mermaid}
+graph TB
+    A[PVC Created] --> B[StorageClass]
+    B --> C[Provisioner]
+    C --> D[New PV]
+    D --> E[Auto-binding]
+    E --> A
+    
+    style B fill:#f3e5f5
+```
+
+
+---
+
+## Ejemplo de StorageClass
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  iops: "10000"
+  throughput: "500"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+```
+
+**Características:**
+
+- `provisioner`: Quién crea el volumen (AWS EBS, GCE PD, etc.)
+- `parameters`: Configuración específica del storage
+- `volumeBindingMode`: Cuándo provisionar (inmediatamente vs cuando se use)
+
+---
+
+## Comparación: Provisión estática vs dinámica
+
+```{mermaid}
+graph TB
+    A[Approach] --> B[Static]
+    A --> C[Dynamic]
+    
+    B --> D[Admin crea PVs]
+    D --> E[Usuario crea PVC]
+    E --> F[Binding]
+    
+    C --> G[Usuario crea PVC]
+    G --> H[StorageClass]
+    H --> I[Auto-provision PV]
+    I --> F
+    
+    style B fill:#fff3e0
+    style C fill:#c8e6c9
+```
+
+---
+
+## Access Modes: Cómo se accede al almacenamiento
+
+
+**ReadWriteOnce (RWO):**
+
+- Un solo nodo puede montar como lectura/escritura
+- Típico para bases de datos
+- **Ejemplo:** PostgreSQL, MySQL
+
+**ReadOnlyMany (ROX):**
+
+- Múltiples nodos pueden montar como solo lectura
+- **Ejemplo:** Datos de configuración
+
+**ReadWriteMany (RWX):**
+
+- Múltiples nodos pueden montar como lectura/escritura
+- **Ejemplo:** Sistemas de archivos compartidos
+
+```{mermaid}
+graph TB
+    A[Access Modes] --> B[RWO]
+    A --> C[ROX]
+    A --> D[RWX]
+    
+    B --> E[1 escritor]
+    C --> F[Múltiples lectores]
+    D --> G[Múltiples escritores]
+    
+    style B fill:#ffccbc
+    style C fill:#fff9c4
+    style D fill:#c8e6c9
+```
+
+
+---
+
+## El desafío de las aplicaciones con estado
+
+
+**¿Por qué no usar Deployment?**
+
+- Los Pods son fungibles (intercambiables)
+- No identidad estable
+- Volúmenes compartidos problemáticos
+- Orden de inicio no controlado
+
+**Ejemplo problema DB:**
+
+```{mermaid}
+graph TB
+    A[Deployment] --> B[Pod A - PV1]
+    A --> C[Pod B - PV1?]
+    
+    style C fill:#ffebee
+```
+**¡Dos Pods no pueden usar el mismo PV RWO!**
+
+```{mermaid}
+graph TB
+    A[Stateless App] --> B[✅ Deployment]
+    C[Stateful App] --> D[❌ Deployment]
+    C --> E[✅ StatefulSet]
+    
+    style B fill:#c8e6c9
+    style D fill:#ffcdd2
+    style E fill:#c8e6c9
+```
+
+
+---
+
+## StatefulSet: El controlador para aplicaciones con estado
+
+
+**Características clave:**
+
+- Identidad de red estable y predecible
+- Almacenamiento persistente único por Pod
+- Ordenamiento granular en despliegue y escalado
+- Actualizaciones ordenadas
+
+**Casos de uso ideales:**
+
+- Bases de datos (PostgreSQL, MongoDB, etc.)
+- Clusters distribuidos (ZooKeeper, etcd)
+- Cualquier app que necesite identidad estable
+
+
+```{mermaid}
+graph TB
+    A[StatefulSet] --> B[Pod-0]
+    A --> C[Pod-1]
+    A --> D[Pod-2]
+    
+    B --> E[PV-0]
+    C --> F[PV-1]
+    D --> G[PV-2]
+    
+    style B fill:#e1f5fe
+    style C fill:#e1f5fe
+    style D fill:#e1f5fe
+```
+
+
+---
+
+## Anatomía de un StatefulSet
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: "postgres"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:13
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "fast-ssd"
+      resources:
+        requests:
+          storage: 10Gi
+```
+
+---
+
+## VolumeClaimTemplate: La magia del StatefulSet
+
+
+**Diferencia clave con Deployment:**
+
+- No referenciamos un PVC existente
+- Usamos `volumeClaimTemplates`
+- Cada Pod obtiene su propio PVC único
+
+**Resultado:**
+
+- Pod-0 → PVC data-postgres-0 → PV único
+- Pod-1 → PVC data-postgres-1 → PV único  
+- Pod-2 → PVC data-postgres-2 → PV único
+
+**Ventaja:** Escalado automático de almacenamiento
+
+```{mermaid}
+graph TB
+    A[StatefulSet] --> B[Template]
+    B --> C[Pod-0: PVC-0]
+    B --> D[Pod-1: PVC-1]
+    B --> E[Pod-N: PVC-N]
+    
+    style B fill:#f3e5f5
+```
+
+---
+
+## Identidad estable en StatefulSets
+
+**Nombre de Pods predecible:**
+
+- `{statefulset-name}-{ordinal}`
+- Ejemplo: `postgres-0`, `postgres-1`, `postgres-2`
+
+**DNS estable:**
+
+- `postgres-0.postgres.default.svc.cluster.local`
+- `postgres-1.postgres.default.svc.cluster.local`
+
+**Volúmenes persistentes:**
+
+- Cada Pod mantiene su volumen entre reinicios
+- Los volúmenes no se mezclan entre Pods
+
+```{mermaid}
+graph TB
+    A[postgres-0] --> B[PV-0]
+    C[postgres-1] --> D[PV-1]
+    
+    E[💥 postgres-0 eliminado] --> F[postgres-0 nuevo]
+    F --> B
+    
+    style F fill:#c8e6c9
+```
+
+---
+
+## Orden en operaciones de StatefulSet
+
+```{mermaid}
+graph TB
+    A[Operación] --> B[Escalado]
+    A --> C[Actualización]
+    A --> D[Eliminación]
+    
+    B --> E[Orden ascendente: 0,1,2...]
+    C --> F[Orden descendente: 2,1,0...]
+    D --> G[Orden descendente: 2,1,0...]
+    
+    style E fill:#e1f5fe
+    style F fill:#fff3e0
+    style G fill:#ffebee
+```
+
+**Garantías:**
+
+- Un Pod debe estar Ready antes del siguiente
+- Previene condiciones de carrera en sistemas distribuidos
+
+---
+
+## Headless Service para StatefulSets
+
+**¿Por qué necesitamos un Service especial?**
+
+- Los StatefulSets necesitan descubrimiento individual de Pods
+- Load balancing no deseado para bases de datos
+
+**Headless Service:**
+
+- `clusterIP: None`
+- No tiene IP virtual
+- Devuelve todas las IPs de los Pods directamente
+- Permite comunicación directa Pod-to-Pod
+
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+```
+
+---
+
+## Patrón completo: PostgreSQL con StatefulSet
+
+```{mermaid}
+graph TB
+    A[StatefulSet: postgres] --> B[postgres-0]
+    A --> C[postgres-1]
+    A --> D[postgres-2]
+    
+    B --> E[PVC: postgres-data-0]
+    C --> F[PVC: postgres-data-1]
+    D --> G[PVC: postgres-data-2]
+    
+    E --> H[PV: pv-aaa]
+    F --> I[PV: pv-bbb]
+    G --> J[PV: pv-ccc]
+    
+    K[Headless Service] --> B
+    K --> C
+    K --> D
+    
+    style B fill:#e1f5fe
+    style E fill:#fff3e0
+    style H fill:#c8e6c9
+```
+
+---
+
+## Ciclo de vida de datos en StatefulSet
+
+
+**Escenario de recuperación:**
+
+1. Pod postgres-0 falla
+2. Kubernetes detecta el fallo
+3. Crea nuevo postgres-0
+4. Monta el mismo PVC postgres-data-0
+5. Los datos persisten intactos
+
+**En producción:**
+
+- Backups regulares del PV
+- Recuperación ante desastres
+- Monitoring del almacenamiento
+
+
+```{mermaid}
+graph LR
+    A[Pod falla] --> B[Nuevo Pod]
+    B --> C[Mismo PVC]
+    C --> D[Mismos datos]
+    
+    style D fill:#c8e6c9
+```
+
+---
+
+## Buenas prácticas para almacenamiento persistente
+
+**Seguridad:**
+
+- Usa StorageClasses con encryption at rest
+- Limita access modes al mínimo necesario
+- Regular backups de PVs críticos
+
+**Rendimiento:**
+
+- Elige StorageClass apropiada para la carga de trabajo
+- Monitoriza uso de almacenamiento
+- Planifica expansión antes de quedarte sin espacio
+
+**Portabilidad:**
+
+- Usa StorageClasses abstractas (no provider-specific)
+- Considera soporte multi-cloud en el diseño
+
+---
+
+## Resumen: PV vs PVC vs StorageClass
+
+| Concepto | Rol | Creado por |
+|----------|-----|------------|
+| **PersistentVolume (PV)** | Recurso de almacenamiento | Administrator |
+| **PersistentVolumeClaim (PVC)** | Solicitud de almacenamiento | Developer |
+| **StorageClass** | Plantilla para PVs dinámicos | Administrator |
+
+---
+
+## Resumen: Deployment vs StatefulSet
+
+| Característica | Deployment | StatefulSet |
+|----------------|------------|-------------|
+| **Identidad** | Fungible | Estable |
+| **Almacenamiento** | Compartido o efímero | Individual persistente |
+| **Escalado** | Simultáneo | Ordenado |
+| **Casos de uso** | Stateless apps | Stateful apps |
+
+---
+
+## Flujo completo de almacenamiento persistente
+
+```{mermaid}
+graph TB
+    A[Developer] --> B[Crea PVC]
+    B --> C[StorageClass]
+    C --> D[Provisión dinámica]
+    D --> E[Nuevo PV]
+    E --> F[Binding automático]
+    F --> G[StatefulSet usa PVC]
+    G --> H[App con datos persistentes]
+    
+    style C fill:#f3e5f5
+    style E fill:#c8e6c9
+```
+
+---
+
+## ¡Preparados para aplicaciones con estado!
+
+**Hoy has aprendido:**
+
+- Volúmenes persistentes vs efímeros
+- Arquitectura PV/PVC para almacenamiento desacoplado
+- StorageClasses para provisión dinámica
+- StatefulSets para aplicaciones con estado
+
+**Próximo:** Laboratorio práctico desplegando PostgreSQL con almacenamiento persistente en Kubernetes.
