@@ -23,25 +23,21 @@ logo: images/qu4nt-logo.png
 
 ## ¿Por qué nos importa el almacenamiento?
 
-::: {.columns}
-::: {.column width="50%"}
+
 **Problema:** Los contenedores son efímeros
 
 - Por diseño, los contenedores son temporales
 - Cuando un contenedor se elimina, TODO su contenido desaparece
 - ¡Incluyendo bases de datos, archivos de configuración, logs!
 
-:::
 
-::: {.column width="50%"}
 ```{mermaid}
 graph TD
     A[Contenedor MySQL] --> B[Datos en capa escribible]
     B --> C[¡Contenedor eliminado!]
     C --> D[💥 Datos perdidos]
 ```
-:::
-:::
+
 
 - Todo lo que guardas dentro del contenedor **desaparece** al detenerlo.
 - ¡Imagina perder la base de datos cada vez que reinicias tu app!
@@ -97,8 +93,7 @@ Esto incluye:
 
 ## El sistema de archivos de Docker
 
-::: {.columns}
-::: {.column width="60%"}
+
 ```{mermaid}
 graph TB
     A[Imagen Base] --> B[Capa 1: SO]
@@ -113,15 +108,13 @@ graph TB
     
     style F fill:#e1f5fe
 ```
-:::
 
-::: {.column width="40%"}
+
 **Concepto clave:** Capas superpuestas
+
 - **Capas de solo lectura:** Provenientes de la imagen
 - **Capa escribible:** Única por contenedor
 - **Union File System:** Combina todas las capas
-:::
-:::
 
 ---
 
@@ -144,9 +137,9 @@ graph LR
 
 ## Volumes: La opción recomendada
 
-::: {.columns}
-::: {.column width="50%"}
+
 **¿Qué son?**
+
 Un **Volume** es un directorio **gestionado por Docker** fuera del ciclo de vida del contenedor.
 
 - Almacenado en `/var/lib/docker/volumes/` (en Linux)
@@ -155,14 +148,13 @@ Un **Volume** es un directorio **gestionado por Docker** fuera del ciclo de vida
 - Compatible con clusters (Swarm, Kubernetes)
 
 **Ventajas:**
+
 - Aislamiento del sistema de archivos del host  
 - Fácil de respaldar (`docker run --rm -v mi-volumen:/datos alpine tar czf - -C /datos .`)  
 - Seguro y portable
 - Gestionados mediante CLI de Docker
 - Mejor rendimiento en algunos sistemas
-:::
 
-::: {.column width="50%"}
 ```{mermaid}
 graph TB
     A[Contenedor A] --> C[Volume MySQL]
@@ -178,9 +170,7 @@ graph LR
   Container["Contenedor"] -->|escribe| Volume["Docker Volume"]
   Volume -->|persiste| Disco["Disco del Host"]
   style Volume fill:#4CAF50,stroke:#388E3C,color:white
-
-:::
-:::
+```
 
 ---
 
@@ -209,20 +199,20 @@ docker volume rm mi-db-data
 
 ## Bind Mounts: Conexión directa
 
-::: {.columns}
-::: {.column width="50%"}
+
 **¿Qué son?**
+
 - Montaje de un directorio específico del host
 - El contenedor accede directamente al filesystem del host
 - Mapea un **directorio o archivo específico del host** directamente al contenedor.
 
 **Casos de uso:**
+
 - Desarrollo (código fuente)
 - Configuraciones específicas del host
 - Cuando necesitas control total
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph LR
     A[/home/usuario/proyecto] --> B[Contenedor App]
@@ -238,8 +228,6 @@ graph LR
   Container --> App["App ve los archivos en tiempo real"]
 ```
 
-:::
-:::
 
 **📌 Ideal para desarrollo**, cuando quieres editar archivos en tiempo real.
 
@@ -253,20 +241,19 @@ graph LR
 
 ## tmpfs: Almacenamiento en memoria
 
-::: {.columns}
-::: {.column width="60%"}
 **¿Qué son?**
+
 - Sistema de archivos temporal en memoria RAM
 - Extremadamente rápido
 - Se pierde al reiniciar el contenedor
 
 **Casos de uso:**
+
 - Archivos temporales sensibles
 - Cachés que no necesitan persistir
 - Información sensible que no debe escribirse en disco
-:::
 
-::: {.column width="40%"}
+
 ```{mermaid}
 graph TB
     A[Memoria RAM] --> B[tmpfs mount]
@@ -274,8 +261,7 @@ graph TB
     
     style A fill:#fce4ec
 ```
-:::
-:::
+
 
 ---
 
@@ -288,6 +274,7 @@ graph TB
 | **tmpfs** | ❌ No | Muy alto | Datos temporales sensibles |
 
 > 🧩 **Regla mental**:  
+
 > - **Producción → Volume**  
 > - **Desarrollo → Bind Mount**
 
@@ -295,20 +282,20 @@ graph TB
 
 ## ¿Por qué necesitamos redes en Docker?
 
-::: {.columns}
-::: {.column width="50%"}
+
 **Problema inicial:**
+
 - Los contenedores están aislados
 - No pueden comunicarse entre sí por defecto
 - No son accesibles desde el exterior
 
 **Necesitamos:**
+
 - Comunicación entre contenedores
 - Exponer servicios al mundo exterior
 - Aislamiento de redes diferentes
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph LR
     A[🌐 Internet] --> B[¿Cómo llego?]
@@ -317,8 +304,6 @@ graph LR
     
     style B fill:#ffcdd2
 ```
-:::
-:::
 
 ---
 
@@ -340,7 +325,6 @@ graph TB
 ```
 
 **Bridge por defecto:** Todos los contenedores conectados automáticamente
-
 
 
 ---
@@ -366,15 +350,16 @@ graph TB
 
 ## Bridge Network: El más común
 
-::: {.columns}
-::: {.column width="50%"}
+
 **Características:**
+
 - Red privada interna a Docker
 - NAT para comunicación externa
 - DNS automático entre contenedores
 - Aislamiento por defecto
 
 **Como un router virtual:**
+
 - Cada contenedor tiene IP única
 - Pueden comunicarse entre sí
 - Salida al exterior mediante NAT
@@ -391,9 +376,7 @@ docker run -d nginx
 
 > ❌ **No recomendado para apps multi-contenedor**.
 
-:::
 
-::: {.column width="50%"}
 ```{mermaid}
 graph TB
     A[Bridge Network] --> B[Contenedor Web:80]
@@ -405,27 +388,25 @@ graph TB
     
     style A fill:#e3f2fd
 ```
-:::
-:::
 
 ---
 
 ## Host Network: Máximo rendimiento
 
-::: {.columns}
-::: {.column width="50%"}
+
 **Características:**
+
 - El contenedor usa la red del host directamente
 - Sin aislamiento de red
 - Máximo rendimiento (sin NAT)
 
 **Casos de uso:**
+
 - Alto rendimiento necesario
 - Cuando necesitas usar puertos del host directamente
 - Aplicaciones que manejan su propio aislamiento
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph LR
     A[Contenedor] --> B[eth0 del Host]
@@ -433,8 +414,8 @@ graph LR
     
     style A fill:#f3e5f5
 ```
-:::
-:::
+
+
 
 **⚠️ Precaución:** Menos seguridad - el contenedor ve toda la red del host
 
@@ -442,20 +423,20 @@ graph LR
 
 ## Comunicación entre contenedores
 
-::: {.columns}
-::: {.column width="50%"}
+
 **Problema tradicional:**
+
 - ¿Cómo encuentra un contenedor a otro?
 - Las IPs cambian
 - Configuración manual complicada
 
 **Solución Docker:**
+
 - DNS automático
 - Nombres de contenedor como hostname
 - Redes personalizadas
-:::
 
-::: {.column width="50%"}
+
 ```{mermaid}
 graph LR
     A[webapp] --> B[Resuelve: database]
@@ -465,8 +446,7 @@ graph LR
     
     style C fill:#fff9c4
 ```
-:::
-:::
+
 
 ---
 
@@ -491,44 +471,47 @@ graph TB
 
 ## Patrones comunes de comunicación
 
-::: {.columns}
-::: {.column width="50%"}
+
 **1. Web → API → Database**
+
 ```{mermaid}
 graph LR
     A[Frontend] --> B[Backend API]
     B --> C[Database]
 ```
+
 **2. Microservicios**
+
 ```{mermaid}
 graph TB
     A[API Gateway] --> B[Servicio Users]
     A --> C[Servicio Orders]
     A --> D[Servicio Payments]
 ```
-:::
 
-::: {.column width="50%"}
+
 **3. Publicación de puertos**
+
 - Exponer servicios específicos
 - Mapeo puerto contenedor → puerto host
 
 **4. Comunicación entre hosts**
+
 - Docker Swarm mode
 - Overlay networks
-:::
-:::
 
 ---
 
 ## Buenas prácticas de redes
 
 **Seguridad:**
+
 - Usa redes personalizadas para aislar grupos de contenedores
 - No uses la red "host" a menos que sea necesario
 - Limita la exposición de puertos
 
 **Organización:**
+
 - Una red por aplicación/microservicio
 - Nombres descriptivos para redes
 - Documenta las dependencias entre servicios
@@ -640,7 +623,8 @@ Ambos montan el mismo volumen → ven los mismos archivos.
 | `-p 80`                | Puerto aleatorio en host → 80        |
 | `-p 127.0.0.1:8080:80` | Solo accesible desde localhost       |
 
-> 🔒 **Buena práctica**:  
+> 🔒 **Buena práctica**:
+
 > Usa `-p 127.0.0.1:PUERTO:PUERTO` en desarrollo → evita exposición accidental en redes públicas.
 
 ---
@@ -671,14 +655,17 @@ graph LR
 ```
 
 ### 1. **Persistencia**
+
 - Usa **Volumes** para datos en producción  
 - Usa **Bind Mounts** solo para desarrollo
 
 ### 2. **Redes**
+
 - **Nunca** uses la red `bridge` por defecto para apps multi-contenedor  
 - **Siempre** crea una red personalizada → comunicación por nombre
 
 ### 3. **Puertos**
+
 - **Publica solo lo necesario**  
 - **Restringe a localhost** en entornos de desarrollo
 
@@ -692,6 +679,7 @@ Ahora que entiendes los **conceptos**,
 ¡estarás listo para el laboratorio práctico!
 
 > 🚀 **Recuerda**:  
+
 > - Los datos viven en **volumes**  
 > - Los contenedores se hablan en **redes**  
 > - Tú eres el arquitecto de este mundo efímero... ¡pero con memoria!
@@ -700,6 +688,7 @@ Ahora que entiendes los **conceptos**,
 ## ¡Preparados para el laboratorio!
 
 **Lo que hemos cubierto:**
+
 - Fundamentos de almacenamiento persistente
 - Tipos de volúmenes y cuándo usar cada uno
 - Arquitectura de redes en Docker
