@@ -1,0 +1,20 @@
+# Dockerfile básico - Versión inicial
+FROM python:3.13.3
+
+# Establecer directorio de trabajo
+WORKDIR /code
+
+# Copiar archivos de requisitos
+COPY ./requirements.txt /code/requirements.txt
+
+# Instalar dependencias
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
+
+# Copiar el código de la aplicación
+COPY ./app /code/app
+
+# Exponer el puerto
+EXPOSE 8000
+
+# Comando para ejecutar la aplicación
+CMD ["fastapi", "run", "app/main.py", "--port", "80"]
