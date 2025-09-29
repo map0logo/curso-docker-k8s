@@ -1,0 +1,653 @@
+---
+title: "Taller de Docker: Contenerización de Aplicación Python"
+format: html
+engine: knitr
+---
+
+# Laboratorio: Contenerizando una Aplicación Python
+
+## Objetivos de Aprendizaje
+
+- Crear una aplicación web simple con FastAPI
+- Escribir y optimizar Dockerfiles para aplicaciones Python
+- Implementar multi-stage builds para reducir tamaño de imágenes
+- Aplicar mejores prácticas de seguridad y eficiencia
+- Utilizar herramientas de análisis y optimización
+
+## Prerrequisitos
+
+- Docker Desktop instalado y funcionando
+- Editor de código (VS Code recomendado)
+- Conocimientos básicos de Python
+- Terminal/PowerShell con permisos administrativos
+
+## 1. Crear Aplicación FastAPI "Hola Mundo"
+
+### Estructura del Proyecto
+
+```powershell{eval==false}
+# Crear estructura de directorios
+mkdir mi-app-fastapi
+cd mi-app-fastapi
+```
+
+Dentro de esta carpeta `mi-app-fastapi`, crearemos un archivo donde se hospedara el codigo de la aplicación, llamado `main.py`.
+ 
+### Aplicación Principal (`main.py`)
+
+```python{eval==false}
+from typing import Union
+
+from fastapi import FastAPI
+
+## Inicialización de FastAPI, que incluye un título y una descripción que se mostrará al iniciar la aplicación
+app = FastAPI(
+    title="Mi App FastAPI Dockerizada",
+    description="Una aplicación simple contenerizada con Docker",
+    version="1.0.0"
+)
+
+## Función 'Hola Mundo' que incluye además el nombre del host
+@app.get("/")
+def read_root():
+    return {
+        "message": "¡Hola Mundo desde Docker!",
+        "version": "1.0.0"
+    }
+
+## Función que devolverá el estado actual de la aplicación junto a la fecha.
+## Por el momento, no hace nada más que devolver el status "healthy"
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "timestamp": __import__('datetime').datetime.now().isoformat()}
+
+## Función que devuelve un objeto de una base de datos.
+## Por el momento, solo devolverá un string vacio y el ID del objeto.
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: Union[str, None] = None):
+    return {"item_id": item_id, "q": q}
+```
+
+### Archivo de Dependencias (`requirements.txt`)
+
+Primero instalamos las dependencias mediante Pip:
+
+```powershell{eval=False}
+python -m pip install fastapi[standard]
+python -m pip install uvicorn
+python -m pip freeze >> requirements.txt
+```
+
+Esto genera un archivo con el siguiente contenido:
+
+```powershell{eval=False}
+fastapi[standard]==0.104.1
+uvicorn==0.24.0
+```
+
+Mediante el cual se puede instalar la aplicación dentro de la imagén Docker.
+
+### Ejercicio de Exploración: Probar la Aplicación Localmente
+
+```powershell{eval=False}
+# Ejecutar la aplicación
+python app.py
+
+# Probar en navegador: http://localhost:8000
+# Probar endpoint health: http://localhost:8000/health
+# Probar endpoint items: http://localhost:8000/items/42?q=test
+```
+
+## 2. Dockerfile Básico para FastAPI
+
+### Versión Inicial (Dockerfile.basic)
+
+```dockerfile{eval=False}
+# Dockerfile básico - Versión inicial
+FROM python:3.13.3
+
+# Establecer directorio de trabajo
+WORKDIR /code
+
+# Copiar archivos de requisitos
+COPY ./requirements.txt /code/requirements.txt
+
+# Instalar dependencias
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
+
+# Copiar el código de la aplicación
+COPY ./app /code/app
+
+# Exponer el puerto
+EXPOSE 8000
+
+# Comando para ejecutar la aplicación
+CMD ["fastapi", "run", "app/main.py", "--port", "80"]
+```
+
+### Construir y Probar la Imagen Básica
+
+```powershell{eval=False}
+# Construir la imagen
+docker build -t mi-fastapi-basic -f Dockerfile.basic .
+
+# Ver tamaño de la imagen
+docker images | grep mi-fastapi-basic
+
+# Ejecutar el contenedor
+docker run -d --name fastapi-basic -p 8000:80 mi-fastapi-basic
+
+# Verificar que funciona
+curl http://localhost:8000/health
+
+# Revisar logs
+docker logs fastapi-basic
+```
+
+### Versión Mejorada (`Dockerfile.optimized`)
+
+```dockerfile{eval=False}
+# Dockerfile optimizado con mejores prácticas
+FROM python:3.11-slim as builder
+
+# Instalar dependencias del sistema necesarias
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Crear entorno virtual
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Instalar dependencias
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# --- Etapa de producción ---
+FROM python:3.11-slim
+
+# Instalar solo dependencias runtime necesarias
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Crear usuario no-root
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+WORKDIR /app
+
+# Copiar entorno virtual desde builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copiar aplicación
+COPY --chown=appuser:appgroup . .
+
+# Cambiar a usuario no-root
+USER appuser
+
+# Exponer puerto
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Comando de ejecución
+CMD ["fastapi", "run", "app/main.py", "--port", "80"]
+```
+
+### 🔍 Ejercicio de Exploración: Comparar Tamaños
+
+```powershell{eval=False}
+# Construir ambas versiones
+docker build -t mi-fastapi-basic -f Dockerfile.basic .
+docker build -t mi-fastapi-optimized -f Dockerfile.optimized .
+
+# Comparar tamaños
+docker images | grep mi-fastapi
+
+# Ejecutar versión optimizada
+docker run -d --name fastapi-opt -p 8001:80 mi-fastapi-optimized
+
+# Probar funcionalidad
+curl http://localhost:8001/
+```
+
+## 3. Builds multi-stage
+
+### Dockerfile Multi-stage Completo (`Dockerfile.multistage`)
+
+```dockerfile{eval=False}
+# Multi-stage build para máxima optimización
+
+# --- Stage 2: Builder ---
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Copiar código de la aplicación
+COPY . .
+
+# Ejecutar tests (opcional)
+# RUN python -m pytest tests/
+
+# --- Stage 3: Runtime ---
+FROM python:3.11-alpine as runtime
+
+# Instalar dependencias mínimas de runtime
+RUN apk add --no-cache curl
+
+# Crear usuario no-root
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copiar dependencias y aplicación
+COPY --from=builder /app .
+
+# Configurar permisos
+RUN chown -R appuser:appgroup /app
+ENV PATH=/root/.local/bin:$PATH:/home/appuser/.local/bin
+
+# Cambiar a usuario no-root
+USER appuser
+
+# Copiar solo requirements para cache eficiente
+COPY requirements.txt .
+
+# Instalar dependencias en capa separada para mejor caching
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Variables de entorno
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Exponer puerto
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Comando de ejecución
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### Archivo .dockerignore Esencial
+
+Con un archivo .dockerignore, podemos excluir archivos del contexto de build para hacer imágenes más ligeras:
+
+```dockerignore{eval=False}
+# Archivo .dockerignore para Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Testing
+.coverage
+.pytest_cache/
+tests/
+test_*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+```
+
+### 🔍 Desafío: Optimización Extrema (`Dockerfile.ultraoptimized`)
+
+**Objetivo:** Reducir la imagen a menos de 100MB
+
+```dockerfile{eval=False}
+# Desafío: Dockerfile ultra-optimizado
+FROM python:3.11-alpine as builder
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+# Instalar compiladores temporales
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    linux-headers
+
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Remover compiladores
+RUN apk del .build-deps
+
+# --- Runtime ---
+FROM python:3.11-alpine
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+COPY --from=builder /root/.local /root/.local
+COPY . .
+
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+
+USER appuser
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+```
+
+Si comparamos tamaños, veremos la mejora del dockerfile ultra-optimizado frente a las demás:
+
+```powershell{eval=False}
+docker build -t mi-fastapi-uoptimized -f Dockerfile.ultraoptimized .
+
+# Comparar tamaños
+docker images | grep mi-fastapi
+```
+
+## 4. Scripts de Automatización y Validación
+
+### Script de Construcción (`build.sh`)
+
+```bash{eval=False}
+#!/bin/bash
+
+set -e  # Detener en error
+
+echo "=== Construyendo aplicación FastAPI ==="
+
+# Variables
+IMAGE_NAME="mi-fastapi-app"
+TAG="latest"
+
+# Limpiar contenedores previos
+docker ps -aq --filter "name=fastapi-*" | xargs -r docker rm -f
+
+# Construir imagen
+echo "Construyendo imagen Docker..."
+docker build -t $IMAGE_NAME:$TAG -f Dockerfile.multistage .
+
+# Mostrar información de la imagen
+echo "=== Información de la imagen ==="
+docker images $IMAGE_NAME:$TAG
+
+# Ejecutar tests básicos
+echo "=== Ejecutando tests básicos ==="
+docker run -d --name fastapi-test -p 8000:8000 $IMAGE_NAME:$TAG
+sleep 5  # Esperar que la app inicie
+
+# Test de health check
+if curl -f http://localhost:8000/health; then
+    echo "✅ Health check PASSED"
+else
+    echo "❌ Health check FAILED"
+    docker logs fastapi-test
+    exit 1
+fi
+
+# Test de endpoint principal
+if curl -s http://localhost:8000/ | grep -q "Hola Mundo"; then
+    echo "✅ Endpoint principal PASSED"
+else
+    echo "❌ Endpoint principal FAILED"
+    exit 1
+fi
+
+# Limpiar
+docker stop fastapi-test
+docker rm fastapi-test
+
+echo "=== Build completado exitosamente ==="
+echo "Imagen: $IMAGE_NAME:$TAG"
+echo "Tamaño: $(docker images $IMAGE_NAME:$TAG --format "table {{.Size}}" | tail -n1)"
+```
+
+### Script de Construcción (`validate.py`)
+
+```python{eval=false}
+#!/usr/bin/env python3
+"""
+Script de validación para el laboratorio Docker
+"""
+
+import requests
+import docker
+import sys
+import time
+
+def validate_basic_requirements():
+    """Validar requisitos básicos del sistema"""
+    print("🔍 Validando requisitos del sistema...")
+    
+    try:
+        # Verificar que Docker está corriendo
+        client = docker.from_env()
+        client.ping()
+        print("✅ Docker está funcionando")
+    except Exception as e:
+        print(f"❌ Error con Docker: {e}")
+        return False
+    
+    return True
+
+def validate_image_build():
+    """Validar que la imagen se construye correctamente"""
+    print("\n🔍 Validando construcción de imagen...")
+    .
+    try:
+        client = docker.from_env()
+        
+        # Verificar que Dockerfile existe
+        import os
+        if not os.path.exists('Dockerfile'):
+            print("❌ Dockerfile no encontrado")
+            return False
+        
+        # Construir imagen (usando cache si existe)
+        image, logs = client.images.build(path='.', tag='fastapi-lab', rm=True)
+        print("✅ Imagen construida exitosamente")
+        
+        # Verificar tamaño
+        image_info = client.images.get('fastapi-lab')
+        size_mb = image_info.attrs['Size'] / (1024 * 1024)
+        print(f"📦 Tamaño de imagen: {size_mb:.1f} MB")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error construyendo imagen: {e}")
+        return False
+
+def validate_container_runtime():
+    """Validar que el contenedor funciona correctamente"""
+    print("\n🔍 Validando ejecución del contenedor...")
+    
+    try:
+        client = docker.from_env()
+        
+        # Ejecutar contenedor
+        container = client.containers.run(
+            'fastapi-lab',
+            ports={'8000/tcp': 8000},
+            detach=True,
+            name='test-container'
+        )
+        
+        # Esperar que la app inicie
+        time.sleep(3)
+        
+        # Probar endpoints
+        base_url = 'http://localhost:8000'
+        
+        try:
+            # Test health endpoint
+            response = requests.get(f'{base_url}/health', timeout=5)
+            if response.status_code == 200:
+                print("✅ Health endpoint funciona")
+            else:
+                print(f"❌ Health endpoint error: {response.status_code}")
+                return False
+            
+            # Test main endpoint
+            response = requests.get(base_url, timeout=5)
+            if response.status_code == 200 and 'Hola Mundo' in response.text:
+                print("✅ Endpoint principal funciona")
+            else:
+                print("❌ Endpoint principal no funciona correctamente")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error conectando a la aplicación: {e}")
+            return False
+        finally:
+            # Limpiar
+            container.stop()
+            container.remove()
+            
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error ejecutando contenedor: {e}")
+        return False
+
+def validate_multi_stage():
+    """Validar características de multi-stage build"""
+    print("\n🔍 Validando multi-stage build...")
+    
+    try:
+        client = docker.from_env()
+        
+        # Verificar que tenemos diferentes Dockerfiles
+        dockerfiles = ['Dockerfile.basic', 'Dockerfile.optimized', 'Dockerfile.multistage']
+        existing_files = [f for f in dockerfiles if os.path.exists(f)]
+        
+        if len(existing_files) >= 2:
+            print(f"✅ Encontrados {len(existing_files)} Dockerfiles")
+            
+            # Comparar tamaños si hay múltiples versiones
+            for dockerfile in existing_files:
+                tag = f"test-{dockerfile.replace('.', '-')}"
+                try:
+                    client.images.build(path='.', dockerfile=dockerfile, tag=tag, rm=True)
+                    image = client.images.get(tag)
+                    size_mb = image.attrs['Size'] / (1024 * 1024)
+                    print(f"   {dockerfile}: {size_mb:.1f} MB")
+                    
+                    # Limpiar imagen temporal
+                    client.images.remove(tag)
+                except:
+                    pass
+                    
+            return True
+        else:
+            print("❌ Se esperaban múltiples Dockerfiles para comparación")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error validando multi-stage: {e}")
+        return False
+
+def main():
+    """Función principal de validación"""
+    print("=== VALIDACIÓN DEL LABORATORIO DOCKER ===\n")
+    
+    tests = [
+        validate_basic_requirements,
+        validate_image_build,
+        validate_container_runtime,
+        validate_multi_stage
+    ]
+    
+    results = []
+    for test in tests:
+        try:
+            results.append(test())
+        except Exception as e:
+            print(f"❌ Error inesperado: {e}")
+            results.append(False)
+    
+    passed = sum(results)
+    total = len(results)
+    
+    print(f"\n=== RESULTADOS FINALES ===")
+    print(f"Pruebas pasadas: {passed}/{total}")
+    
+    if passed == total:
+        print("🎉 ¡Todos los tests pasaron! Laboratorio completado exitosamente.")
+        return 0
+    else:
+        print("💡 Algunos tests fallaron. Revisa los mensajes de error.")
+        return 1
+
+if __name__ == '__main__':
+    sys.exit(main())
+```
+
+## Preguntas de Autoevaluación
+
+### Conocimientos Básicos
+
+1. ¿Qué ventajas tiene usar `python:3.11-slim` sobre `python:3.11`?
+
+2. ¿Por qué es importante crear un usuario no-root en el contenedor?
+
+3. ¿Cómo ayuda el multi-stage build a reducir el tamaño de la imagen final?
+
+### Troubleshooting
+
+4. Si tu contenedor se inicia pero no responde en el puerto 8000, ¿qué pasos seguirías para diagnosticar el problema?
+
+5. ¿Cómo verificarías qué capas están contribuyendo más al tamaño de tu imagen?
+
+### Optimización
+
+6. ¿Qué elementos deberías incluir en tu archivo `.dockerignore` para una aplicación Python?
+
+7. ¿Cómo implementarías un health check efectivo para tu aplicación FastAPI?
+
+### Aplicación Práctica
+
+8. ¿Qué cambios harías en el Dockerfile si necesitaras conectarte a una base de datos PostgreSQL?
+
+9. ¿Cómo manejarías variables de entorno sensibles como contraseñas de base de datos?
+
+## 🔗 Recursos Adicionales
+
+[Documentación oficial de Docker](https://docs.docker.com/)
+
+[Best practices para Dockerfiles](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
+
+[FastAPI documentation](https://fastapi.tiangolo.com/)   
+
+[Docker Security Best Practices](https://docs.docker.com/engine/security/)

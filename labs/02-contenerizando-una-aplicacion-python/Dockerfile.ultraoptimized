@@ -1,0 +1,36 @@
+# Desafío: Dockerfile ultra-optimizado
+FROM python:3.11-alpine as builder
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+# Instalar compiladores temporales
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    linux-headers
+
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Remover compiladores
+RUN apk del .build-deps
+
+# --- Runtime ---
+FROM python:3.11-alpine
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+COPY --from=builder /root/.local /root/.local
+COPY . .
+
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+
+USER appuser
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

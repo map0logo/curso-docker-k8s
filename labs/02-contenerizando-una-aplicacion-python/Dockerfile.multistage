@@ -1,0 +1,53 @@
+# Multi-stage build para máxima optimización
+
+# --- Stage 2: Builder ---
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Copiar código de la aplicación
+COPY . .
+
+# Ejecutar tests (opcional)
+# RUN python -m pytest tests/
+
+# --- Stage 3: Runtime ---
+FROM python:3.11-alpine as runtime
+
+# Instalar dependencias mínimas de runtime
+RUN apk add --no-cache curl
+
+# Crear usuario no-root
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copiar dependencias y aplicación
+COPY --from=builder /app .
+
+# Configurar permisos
+RUN chown -R appuser:appgroup /app
+ENV PATH=/root/.local/bin:$PATH:/home/appuser/.local/bin
+
+# Cambiar a usuario no-root
+USER appuser
+
+# Copiar solo requirements para cache eficiente
+COPY requirements.txt .
+
+# Instalar dependencias en capa separada para mejor caching
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Variables de entorno
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Exponer puerto
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Comando de ejecución
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
