@@ -1,0 +1,450 @@
+---
+title: "Laboratorio Docker: Almacenamiento y Redes - Backend + PostgreSQL"
+format: html
+engine: knitr
+---
+
+<style>
+.practical-exercise {
+  background-color: #f0f8ff;
+  border-left: 4px solid #4a86e8;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.challenge {
+  background-color: #fff2cc;
+  border-left: 4px solid #ffd966;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.important-note {
+  background-color: #ffe599;
+  border-left: 4px solid #f1c232;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.success {
+  background-color: #d9ead3;
+  border-left: 4px solid #6aa84f;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.warning {
+  background-color: #fce5cd;
+  border-left: 4px solid #e69138;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.network-diagram {
+  background-color: #e8f5e8;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+</style>
+
+## Objetivos del Laboratorio
+
+Al completar este laboratorio, los participantes podrán:
+
+- Crear y gestionar volúmenes Docker para persistencia de datos
+- Configurar redes personalizadas para comunicación entre contenedores
+- Conectar una aplicación FastAPI con una base de datos PostgreSQL
+- Implementar patrones de almacenamiento y red en escenarios reales
+- Solucionar problemas comunes de conectividad y persistencia
+
+## Prerrequisitos
+
+- Docker instalado y funcionando
+- Conocimientos básicos de Docker (contenedores, imágenes, comandos básicos)
+- Editor de texto preferido
+- Terminal/Command line
+
+## Arquitectura del Sistema
+
+```{mermaid}
+graph TB
+    A[🌐 Usuario] --> B[Puerto 8000:8000]
+    B --> C[Contenedor FastAPI]
+    C --> D[Red personalizada: app-network]
+    D --> E[Contenedor PostgreSQL]
+    
+    F[Volume: postgres-data] --> E
+    G[Bind Mount: código] --> C
+    
+    C --> H[Resolución DNS: postgres]
+    H --> E
+    
+    style D fill:#c8e6c9
+    style F fill:#e1f5fe
+    style G fill:#fff3e0
+```
+
+## 1. Configuración de Almacenamiento Persistente
+
+### Creación y Gestión de Volúmenes
+
+<div class="practical-exercise"> **Objetivo:** Aprender a crear y gestionar volúmenes Docker para persistencia de datos. </div>
+
+```powershell{eval=false}
+# 1. Crear un volumen para la base de datos PostgreSQL, con etiquetas para mejor organización
+docker volume create --label project=taller-docker --label service=postgres postgres-data
+
+# 2. Verificar que el volumen fue creado
+docker volume ls
+
+# 3. Inspeccionar el volumen para obtener detalles
+docker volume inspect postgres-data
+```
+
+**Desafío:** - ¿Qué comando usarías para ver solo los volúmenes que no están siendo utilizados? - ¿Cómo podrías crear un volumen con un driver específico? - ¿Qué información proporciona el comando `docker volume inspect`?
+
+### Uso de Bind Mounts para Desarrollo
+
+**Objetivo:** Configurar bind mounts para desarrollo ágil de aplicaciones.
+
+```powershell{eval=false}
+docker run --mount type=bind,src={carpeta donde esté el código de la app FastAPI},dst=/app mi-fastapi-app:latest
+```
+
+## 2. Configuración de Redes Personalizadas
+
+### Creación y Gestión de Redes
+
+**Objetivo:** Aprender a crear y configurar redes personalizadas para aislar servicios.
+
+```powershell{eval=false}
+# 1. Crear una red bridge personalizada
+docker network create app-network
+
+# 2. Verificar la red creada
+docker network ls
+
+# 3. Inspeccionar la red para ver detalles de configuración
+docker network inspect app-network
+
+# 4. Crear una red con configuración específica
+docker network create \
+  --driver bridge \
+  --subnet=172.20.0.0/16 \
+  --gateway=172.20.0.1 \
+  app-network-custom
+
+# 5. Comparar las dos redes
+docker network inspect app-network-custom
+```
+
+## 3. Implementación de PostgreSQL con Persistencia
+
+### Despliegue de Base de Datos con Volumen
+
+**Objetivo:** Configurar PostgreSQL con almacenamiento persistente usando volúmenes.
+
+
+```powershell{eval=false}
+# 1. Desplegar PostgreSQL con volumen persistente
+docker run -d `
+  --name postgres-db `
+  --network app-network `
+  -e POSTGRES_DB=taller_db `
+  -e POSTGRES_USER=api_user `
+  -e POSTGRES_PASSWORD=secure_password123 `
+  -v postgres-data:/var/lib/postgresql/data `
+  -p 5432:5432 `
+  postgres:latest
+
+# 2. Verificar que el contenedor está corriendo
+docker ps --filter "name=postgres-db"
+
+# 3. Verificar la conexión del volumen
+docker inspect postgres-db | grep -A 10 "Mounts"
+
+# 4. Probar la conexión a la base de datos
+docker exec postgres-db pg_isready -U api_user -d taller_db
+
+# 5. Ver logs para confirmar inicialización
+docker logs postgres-db --tail 10
+```
+
+**Nota de Seguridad:** En producción, usa variables de entorno seguras o Docker Secrets para las contraseñas.
+
+### Verificación de Persistencia
+
+```powershell{eval=false}
+# 1. Crear una tabla de prueba en la base de datos
+docker exec -i postgres-db psql -U api_user -d taller_db << EOF
+CREATE TABLE IF NOT EXISTS usuarios (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO usuarios (nombre, email) VALUES 
+('Juan Pérez', 'juan@example.com'),
+('María García', 'maria@example.com');
+
+SELECT * FROM usuarios;
+EOF
+
+# 2. Detener el contenedor
+docker stop postgres-db
+
+# 3. Verificar que está detenido
+docker ps -a --filter "name=postgres-db"
+
+# 4. Reiniciar el contenedor
+docker start postgres-db
+
+# 5. Verificar que los datos persisten
+docker exec -i postgres-db psql -U api_user -d taller_db -c "SELECT * FROM usuarios;"
+```
+
+**✅ Éxito:** Los datos deberían mantenerse después del reinicio, demostrando la persistencia del volumen.
+
+## 4. Desarrollo de la Aplicación FastAPI
+
+### Creación de la Aplicación FastAPI
+
+**Objetivo:** Desarrollar una aplicación FastAPI que se conecte a PostgreSQL.
+
+Archivo *main.py* en carpeta "app":
+
+```python{eval=false}
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel
+from typing import List, Optional
+import asyncpg
+import os
+import datetime
+from contextlib import asynccontextmanager
+
+# Configuración de la base de datos
+DATABASE_URL = f"postgresql://{os.getenv('DB_USER', 'api_user')}:{os.getenv('DB_PASSWORD', 'secure_password123')}@{os.getenv('DB_HOST', 'postgres-db')}:{os.getenv('DB_PORT', '5432')}/{os.getenv('DB_NAME', 'taller_db')}"
+
+# Modelos Pydantic
+class UsuarioCreate(BaseModel):
+    nombre: str
+    email: str
+
+
+class UsuarioResponse(BaseModel):
+    id: int
+    nombre: str
+    email: str
+    fecha_creacion: datetime.datetime
+
+# Conexión a la base de datos
+async def get_db_connection():
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        yield conn
+    finally:
+        await conn.close()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Inicialización: crear tabla si no existe
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                email VARCHAR(100) UNIQUE NOT NULL,
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("✅ Tabla 'usuarios' verificada/creada")
+    finally:
+        await conn.close()
+    yield
+    # Cleanup (opcional)
+
+app = FastAPI(
+    title="API Taller Docker",
+    description="API de ejemplo para el taller de Docker",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+@app.get("/")
+async def root():
+    return {"message": "¡Bienvenido a la API del Taller Docker!", "status": "active"}
+
+@app.get("/health")
+async def health_check(conn=Depends(get_db_connection)):
+    try:
+        # Verificar conexión a la base de datos
+        result = await conn.fetchval("SELECT 1")
+        return {
+            "status": "healthy",
+            "database": "connected" if result == 1 else "disconnected"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+
+@app.post("/usuarios/", response_model=UsuarioResponse)
+async def crear_usuario(usuario: UsuarioCreate, conn=Depends(get_db_connection)):
+    try:
+        query = "INSERT INTO usuarios (nombre, email) VALUES ($1, $2) RETURNING id, nombre, email, fecha_creacion"
+        result = await conn.fetchrow(query, usuario.nombre, usuario.email)
+        return dict(result)
+    except asyncpg.UniqueViolationError:
+        raise HTTPException(status_code=400, detail="El email ya existe")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error del servidor: {str(e)}")
+
+@app.get("/usuarios/", response_model=List[UsuarioResponse])
+async def listar_usuarios(conn=Depends(get_db_connection)):
+    try:
+        results = await conn.fetch("SELECT id, nombre, email, fecha_creacion FROM usuarios ORDER BY id")
+        return [dict(row) for row in results]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error del servidor: {str(e)}")
+
+@app.get("/usuarios/{usuario_id}", response_model=UsuarioResponse)
+async def obtener_usuario(usuario_id: int, conn=Depends(get_db_connection)):
+    result = await conn.fetchrow(
+        "SELECT id, nombre, email, fecha_creacion FROM usuarios WHERE id = $1", 
+        usuario_id
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return dict(result)
+```
+
+### Creación del Contenedor Docker
+
+El Dockerfile será el archivo del anterior laboratorio, llamado `Dockerfile.ultraoptimized`.
+
+Contenidos del archivo `requirements.txt`:
+```
+fastapi[standard]==0.117.1
+uvicorn==0.37.0
+pydantic==2.11.9
+asyncpg==0.30.0
+```
+
+```powershell{eval=false}
+docker build -t mi-fastapi-app -f Dockerfile.ultraoptimized .
+
+docker run -d `
+  --name fastapi-app `
+  --network app-network `
+  -e DB_HOST=postgres-db `
+  -e DB_USER=api_user `
+  -e DB_PASSWORD=secure_password123 `
+  -e DB_NAME=taller_db `
+  -e DB_PORT=5432 `
+  -p 8000:8000 `
+  -v $(pwd):/app `
+  mi-fastapi-app
+
+docker network inspect app-network | grep -A 5 "Containers"
+
+docker logs fastapi-app --tail 15
+```
+
+## 5. Verificación de Conectividad y Persistencia
+
+### Pruebas de Comunicación y Funcionalidad
+
+**Objetivo:** Verificar que la aplicación puede comunicarse con la base de datos y funciona correctamente.
+
+```powershell{eval=false}
+# 1. Probar el endpoint de health check
+curl http://localhost:8000/health
+
+# 2. Probar el endpoint raíz
+curl http://localhost:8000/
+
+# 3. Crear un usuario mediante la API
+curl -X POST "http://localhost:8000/usuarios/" `
+  -H "Content-Type: application/json" `
+  -d '{"nombre": "Carlos López", "email": "carlos@example.com"}'
+
+# 4. Listar todos los usuarios
+curl http://localhost:8000/usuarios/
+
+# 5. Obtener un usuario específico
+curl http://localhost:8000/usuarios/1
+```
+
+- ¿Qué ocurre si intentas crear un usuario con un email que ya existe?
+- ¿Cómo verificarías la conectividad de red entre los contenedores?
+
+### Diagnóstico de Problemas de Conectividad
+
+```powershell{eval=false}
+# 1. Simular un problema de red desconectando un contenedor
+docker network disconnect app-network fastapi-app
+
+# 2. Verificar que la aplicación falla
+curl http://localhost:8000/health || echo "✅ Esperado: La aplicación falla sin conexión a la red"
+
+# 3. Reconectar el contenedor a la red
+docker network connect app-network fastapi-app
+
+# 4. Verificar que se restablece la conexión
+sleep 5 && curl http://localhost:8000/health
+
+# 5. Probar resolución DNS dentro de la red
+docker exec fastapi-app ping -c 3 postgres-db
+
+# 6. Verificar conectividad a nivel de puerto
+docker exec fastapi-app nc -zv postgres-db 5432
+```
+
+### Problemas de Persistencia de Datos
+
+```powershell{eval=false}
+
+# 1. Crear datos importantes
+curl -X POST "http://localhost:8000/usuarios/" `
+  -H "Content-Type: application/json" `
+  -d '{"nombre": "Ana Silva", "email": "ana@example.com"}'
+
+# 2. Listar usuarios para confirmar
+curl http://localhost:8000/usuarios/
+
+# 3. Detener y eliminar el contenedor de PostgreSQL (SIMULACIÓN DE ERROR)
+docker stop postgres-db
+docker rm postgres-db
+
+# 4. Verificar que el volumen sigue existiendo
+docker volume ls | grep postgres-data
+
+# 5. Recrear el contenedor de PostgreSQL con el mismo volumen
+docker run -d `
+  --name postgres-db `
+  --network app-network `
+  -e POSTGRES_DB=taller_db `
+  -e POSTGRES_USER=api_user `
+  -e POSTGRES_PASSWORD=secure_password123 `
+  -v postgres-data:/var/lib/postgresql/data `
+  -p 5432:5432 `
+  postgres:15-alpine
+
+# 6. Verificar que los datos se mantienen
+sleep 10 && curl http://localhost:8000/usuarios/
+```
+
+## Autoevaluación y Validación
+
+### Preguntas de Reflexión
+
+- ¿Por qué es importante usar volúmenes para bases de datos en Docker?
+
+- ¿Qué ventajas tiene usar una red personalizada en lugar de la red bridge por defecto?
+
+- ¿Cómo resuelve Docker la comunicación entre contenedores en la misma red?
+
+- ¿Qué ocurriría si no usáramos volúmenes y el contenedor de PostgreSQL se eliminara?
+
+- ¿Por qué los bind mounts son útiles en desarrollo pero no recomendados en producción?
