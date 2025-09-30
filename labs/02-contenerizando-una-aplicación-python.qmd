@@ -324,7 +324,7 @@ Dockerfile
 .dockerignore
 ```
 
-### 🔍 Desafío: Optimización Extrema (`Dockerfile.ultraoptimized`)
+### Optimización Extrema (`Dockerfile.ultraoptimized`)
 
 **Objetivo:** Reducir la imagen a menos de 100MB
 
@@ -334,15 +334,13 @@ FROM python:3.11-alpine as builder
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY . .
 
 # Instalar compiladores temporales
 RUN apk add --no-cache --virtual .build-deps \
     gcc \
     musl-dev \
     linux-headers
-
-RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Remover compiladores
 RUN apk del .build-deps
@@ -354,26 +352,26 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-COPY --from=builder /root/.local /root/.local
-COPY . .
+COPY --from=builder /app .
 
-ENV PATH=/root/.local/bin:$PATH
-ENV PYTHONUNBUFFERED=1
+# Configurar permisos
+RUN chown -R appuser:appgroup /app
+
+ENV PATH=/root/.local/bin:$PATH:/home/appuser/.local/bin
 
 USER appuser
 
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Variables de entorno
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE 8000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
-```
-
-Si comparamos tamaños, veremos la mejora del dockerfile ultra-optimizado frente a las demás:
-
-```powershell{eval=False}
-docker build -t mi-fastapi-uoptimized -f Dockerfile.ultraoptimized .
-
-# Comparar tamaños
-docker images | grep mi-fastapi
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 ```
 
 ## 4. Scripts de Automatización y Validación
