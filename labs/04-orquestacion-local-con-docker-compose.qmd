@@ -1,0 +1,360 @@
+---
+title: "Laboratorio Docker Compose - Stack Completo"
+format: html
+engine: knitr
+---
+
+## Objetivos del Laboratorio
+
+Al finalizar este laboratorio, serás capaz de:
+
+- Crear y configurar un archivo `docker-compose.yml` para aplicaciones multi-contenedor
+- Definir servicios, redes y volúmenes en Docker Compose
+- Gestionar dependencias entre servicios
+- Levantar y destruir stacks completos con comandos simples
+- Utilizar variables de entorno y configuraciones
+- Implementar health checks para servicios
+
+### Estructura del Proyecto
+
+```powershell{eval=false}
+mkdir docker-compose-lab
+cd docker-compose-lab
+mkdir -p app db_scripts
+```
+
+## 1. Configuración de Docker Compose
+
+Copiar el archivo `app/main.py`, `Dockerfile`  y `requirements.txt` del ultimo laboratorio.
+
+### Archivo docker-compose.yml Principal
+
+```yaml
+version: '3.8'
+
+services:
+  # Servicio de la aplicación FastAPI
+  api:
+    build: 
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: fastapi_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=mydatabase
+      - DB_USER=postgres
+      - DB_PASSWORD=password123
+    depends_on:
+      - db
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  # Servicio de base de datos PostgreSQL
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      - POSTGRES_DB=mydatabase
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db_scripts:/docker-entrypoint-initdb.d/
+    networks:
+      - app_network
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Servicio pgAdmin para gestión visual de la base de datos
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    networks:
+      - app_network
+    restart: unless-stopped
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+# Redes definidas
+networks:
+  app_network:
+    driver: bridge
+    name: app_network
+
+# Volúmenes para persistencia
+volumes:
+  postgres_data:
+    name: postgres_data
+  pgadmin_data:
+    name: pgadmin_data
+```
+
+### Script de Inicialización de la Base de Datos
+
+Archivo: `db_scripts/init.sql`
+
+```sql
+-- Script de inicialización de la base de datos
+CREATE TABLE IF NOT EXISTS items (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insertar datos de ejemplo
+INSERT INTO items (name, description, price) VALUES
+('Laptop', 'Laptop de alta gama', 999.99),
+('Mouse', 'Mouse inalámbrico', 29.99),
+('Teclado', 'Teclado mecánico', 79.99)
+ON CONFLICT DO NOTHING;
+```
+
+### Archivo de Variables de Entorno
+
+Archivo: `.env`
+
+```env
+# Configuración de la base de datos
+DB_NAME=mydatabase
+DB_USER=postgres
+DB_PASSWORD=password123
+DB_HOST=db
+DB_PORT=5432
+
+# Configuración de la aplicación
+API_HOST=0.0.0.0
+API_PORT=8000
+
+# Configuración pgAdmin
+PGADMIN_EMAIL=admin@example.com
+PGADMIN_PASSWORD=admin123
+```
+
+## 2. Ejecución y Verificación
+
+### Comandos Básicos de Docker Compose
+
+```powershell{eval=false}
+# Levantar todos los servicios en segundo plano
+docker-compose up -d
+
+# Ver el estado de los servicios
+docker-compose ps
+
+# Ver logs de todos los servicios
+docker-compose logs
+
+# Ver logs de un servicio específico
+docker-compose logs api
+docker-compose logs db
+
+# Ver logs en tiempo real
+docker-compose logs -f api
+
+# Detener todos los servicios
+docker-compose down
+
+# Detener y eliminar volúmenes
+docker-compose down -v
+
+# Reconstruir y levantar servicios
+docker-compose up -d --build
+```
+
+### Verificación de los Servicios
+
+```powershell{eval=false}
+# Verificar que todos los contenedores estén corriendo
+docker-compose ps
+
+# Verificar health checks
+docker inspect --format='{{.State.Health.Status}}' fastapi_app
+docker inspect --format='{{.State.Health.Status}}' postgres_db
+
+# Probar la API
+curl http://localhost:8000/
+curl http://localhost:8000/health
+curl http://localhost:8000/items/
+
+# Probar la base de datos
+docker exec -it postgres_db psql -U postgres -d mydatabase -c "SELECT * FROM items;"
+```
+
+### Configuración de pgAdmin
+
+1. Acceder a pgAdmin: http://localhost:8080
+
+2. Credenciales:
+
+* Email: admin@example.com
+
+* Password: admin123
+
+3. Agregar servidor:
+
+* General → Name: Postgres DB
+
+* Connection → Host: db
+
+* Connection → Port: 5432
+
+* Connection → Username: postgres
+
+* Connection → Password: password123
+
+## 3. Ejercicios Prácticos
+
+### Modificaciones y Mejoras
+
+**Tarea**: Modificar el stack para añadir un servicio de Redis como cache.
+
+```yaml
+# Añadir este servicio al docker-compose.yml
+cache:
+  image: redis:7-alpine
+  container_name: redis_cache
+  ports:
+    - "6379:6379"
+  networks:
+    - app_network
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+```
+
+### Gestión de Configuraciones
+
+```powershell{eval=false}
+# Crear archivos de entorno específicos
+cp .env .env.production
+cp .env .env.development
+
+# Modificar docker-compose.yml para usar diferentes archivos
+docker-compose -f docker-compose.yml --env-file .env.development up -d
+```
+
+## 4. Scripts de Validación
+
+### Script de Verificación del Stack
+
+**Archivo**: `verify_stack.sh`
+
+```bash{eval=false}
+#!/bin/bash
+
+echo "🔍 Verificando el stack de Docker Compose..."
+
+# Verificar que docker-compose.yml existe
+if [ ! -f "docker-compose.yml" ]; then
+    echo "❌ Error: docker-compose.yml no encontrado"
+    exit 1
+fi
+
+echo "✅ docker-compose.yml encontrado"
+
+# Verificar servicios
+services=("api" "db" "pgadmin")
+for service in "${services[@]}"; do
+    if docker-compose ps | grep -q "$service"; then
+        echo "✅ Servicio $service está corriendo"
+    else
+        echo "❌ Servicio $service NO está corriendo"
+    fi
+done
+
+# Verificar conectividad de la API
+if curl -s http://localhost:8000/health > /dev/null; then
+    echo "✅ API respondiendo correctamente"
+else
+    echo "❌ API NO responde"
+fi
+
+# Verificar base de datos
+if docker-compose exec db pg_isready -U postgres > /dev/null; then
+    echo "✅ Base de datos conectada"
+else
+    echo "❌ Base de datos NO conectada"
+fi
+
+echo "🎉 Verificación completada!"
+```
+
+### Script de Pruebas de la API
+
+**Archivo**: `test_api.sh`
+
+```bash{eval=false}
+#!/bin/bash
+
+echo "🧪 Ejecutando pruebas de la API..."
+
+BASE_URL="http://localhost:8000"
+
+# Test de health check
+echo "1. Probando health check..."
+curl -s "$BASE_URL/health" | jq .
+
+# Test de listar items
+echo "2. Listando items..."
+curl -s "$BASE_URL/items/" | jq .
+
+# Test de crear item
+echo "3. Creando nuevo item..."
+NEW_ITEM=$(curl -s -X POST "$BASE_URL/items/" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Monitor", "description": "Monitor 24 pulgadas", "price": 199.99}' | jq .)
+
+echo "Item creado:"
+echo "$NEW_ITEM"
+
+# Extraer ID del item creado
+ITEM_ID=$(echo "$NEW_ITEM" | jq -r '.id')
+
+# Test de obtener item específico
+echo "4. Obteniendo item $ITEM_ID..."
+curl -s "$BASE_URL/items/$ITEM_ID" | jq .
+
+echo "✅ Pruebas completadas"
+```
+
+## Preguntas de Reflexión
+
+- ¿Qué ventajas tiene definir todo el stack en un archivo docker-compose.yml?
+- ¿Por qué es importante usar health checks en orquestación de contenedores?
+- ¿Cómo manejarías configuraciones diferentes entre desarrollo y producción?
+- ¿Qué consideraciones de seguridad tomarías al desplegar este stack?
+
+### Ejercicio de Debugging
+
+**Caso**: Un desarrollador reporta que cuando ejecuta docker-compose up, el servicio de API falla con el error "database connection refused".
+
+**Tu tarea**: Crear un plan de troubleshooting paso a paso.
