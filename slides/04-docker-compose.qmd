@@ -846,9 +846,12 @@ graph TB
 **Tu viaje:** De contenedores individuales a aplicaciones complejas orquestadas
 
 ---
+
 ## Flujo de trabajo ideal con Compose
 
-```mermaid
+**Es un ciclo rápido, repetible y consistente**, perfecto para equipos.
+
+```{mermaid}
 flowchart LR
   A[Editar docker-compose.yml] --> B[docker-compose up -d]
   B --> C[Desarrollar y probar]
@@ -857,8 +860,6 @@ flowchart LR
   E --> F[docker-compose down]
   F -->|Opcional| G[docker-compose down -v\n(borra volúmenes)]
 ```
-
-> 🔄 **Es un ciclo rápido, repetible y consistente** → perfecto para equipos.
 
 ---
 
