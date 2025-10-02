@@ -1,7 +1,21 @@
 ---
-title: "Laboratorio Docker: Almacenamiento y Redes - Backend + PostgreSQL"
-format: html
-engine: knitr
+title: "Laboratorio 3: Almacenamiento y Redes - Backend + Almacenamiento"
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html:
+    toc: true
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
 ---
 
 <style>
@@ -91,7 +105,7 @@ graph TB
 
 <div class="practical-exercise"> **Objetivo:** Aprender a crear y gestionar volúmenes Docker para persistencia de datos. </div>
 
-```powershell{eval=false}
+```powershell
 # 1. Crear un volumen para la base de datos PostgreSQL, con etiquetas para mejor organización
 docker volume create --label project=taller-docker --label service=postgres postgres-data
 
@@ -108,7 +122,7 @@ docker volume inspect postgres-data
 
 **Objetivo:** Configurar bind mounts para desarrollo ágil de aplicaciones.
 
-```powershell{eval=false}
+```powershell
 docker run --mount type=bind,src={carpeta donde esté el código de la app FastAPI},dst=/app mi-fastapi-app:latest
 ```
 
@@ -118,7 +132,7 @@ docker run --mount type=bind,src={carpeta donde esté el código de la app FastA
 
 **Objetivo:** Aprender a crear y configurar redes personalizadas para aislar servicios.
 
-```powershell{eval=false}
+```powershell
 # 1. Crear una red bridge personalizada
 docker network create app-network
 
@@ -146,7 +160,7 @@ docker network inspect app-network-custom
 **Objetivo:** Configurar PostgreSQL con almacenamiento persistente usando volúmenes.
 
 
-```powershell{eval=false}
+```powershell
 # 1. Desplegar PostgreSQL con volumen persistente
 docker run -d `
   --name postgres-db `
@@ -175,7 +189,7 @@ docker logs postgres-db --tail 10
 
 ### Verificación de Persistencia
 
-```powershell{eval=false}
+```powershell
 # 1. Crear una tabla de prueba en la base de datos
 docker exec -i postgres-db psql -U api_user -d taller_db << EOF
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -215,7 +229,7 @@ docker exec -i postgres-db psql -U api_user -d taller_db -c "SELECT * FROM usuar
 
 Archivo *main.py* en carpeta "app":
 
-```python{eval=false}
+```python
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
@@ -331,7 +345,7 @@ pydantic==2.11.9
 asyncpg==0.30.0
 ```
 
-```powershell{eval=false}
+```powershell
 docker build -t mi-fastapi-app -f Dockerfile.ultraoptimized .
 
 docker run -d `
@@ -357,7 +371,7 @@ docker logs fastapi-app --tail 15
 
 **Objetivo:** Verificar que la aplicación puede comunicarse con la base de datos y funciona correctamente.
 
-```powershell{eval=false}
+```powershell
 # 1. Probar el endpoint de health check
 curl http://localhost:8000/health
 
@@ -381,7 +395,7 @@ curl http://localhost:8000/usuarios/1
 
 ### Diagnóstico de Problemas de Conectividad
 
-```powershell{eval=false}
+```powershell
 # 1. Simular un problema de red desconectando un contenedor
 docker network disconnect app-network fastapi-app
 
@@ -403,7 +417,7 @@ docker exec fastapi-app nc -zv postgres-db 5432
 
 ### Problemas de Persistencia de Datos
 
-```powershell{eval=false}
+```powershell
 
 # 1. Crear datos importantes
 curl -X POST "http://localhost:8000/usuarios/" `

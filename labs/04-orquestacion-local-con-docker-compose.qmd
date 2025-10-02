@@ -1,7 +1,21 @@
 ---
-title: "Laboratorio Docker Compose - Stack Completo"
-format: html
-engine: knitr
+title: "Laboratorio: Docker Compose - Stack Completo"
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html:
+    toc: true
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
 ---
 
 ## Objetivos del Laboratorio
@@ -17,7 +31,7 @@ Al finalizar este laboratorio, serás capaz de:
 
 ### Estructura del Proyecto
 
-```powershell{eval=false}
+```powershell
 mkdir docker-compose-lab
 cd docker-compose-lab
 mkdir -p app db_scripts
@@ -161,7 +175,7 @@ PGADMIN_PASSWORD=admin123
 
 ### Comandos Básicos de Docker Compose
 
-```powershell{eval=false}
+```powershell
 # Levantar todos los servicios en segundo plano
 docker-compose up -d
 
@@ -190,7 +204,7 @@ docker-compose up -d --build
 
 ### Verificación de los Servicios
 
-```powershell{eval=false}
+```powershell
 # Verificar que todos los contenedores estén corriendo
 docker-compose ps
 
@@ -253,7 +267,7 @@ cache:
 
 ### Gestión de Configuraciones
 
-```powershell{eval=false}
+```powershell
 # Crear archivos de entorno específicos
 cp .env .env.production
 cp .env .env.development
@@ -268,7 +282,7 @@ docker-compose -f docker-compose.yml --env-file .env.development up -d
 
 **Archivo**: `verify_stack.sh`
 
-```bash{eval=false}
+```bash
 #!/bin/bash
 
 echo "🔍 Verificando el stack de Docker Compose..."
@@ -312,7 +326,7 @@ echo "🎉 Verificación completada!"
 
 **Archivo**: `test_api.sh`
 
-```bash{eval=false}
+```bash
 #!/bin/bash
 
 echo "🧪 Ejecutando pruebas de la API..."

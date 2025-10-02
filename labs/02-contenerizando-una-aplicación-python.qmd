@@ -1,7 +1,21 @@
 ---
-title: "Taller de Docker: Contenerización de Aplicación Python"
-format: html
-engine: knitr
+title: "Laboratorio 2: Contenerización de Aplicación Python"
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html:
+    toc: true
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
 ---
 
 # Laboratorio: Contenerizando una Aplicación Python
@@ -25,7 +39,7 @@ engine: knitr
 
 ### Estructura del Proyecto
 
-```powershell{eval==false}
+```powershell
 # Crear estructura de directorios
 mkdir mi-app-fastapi
 cd mi-app-fastapi
@@ -35,7 +49,7 @@ Dentro de esta carpeta `mi-app-fastapi`, crearemos un archivo donde se hospedara
  
 ### Aplicación Principal (`main.py`)
 
-```python{eval==false}
+```python
 from typing import Union
 
 from fastapi import FastAPI
@@ -72,7 +86,7 @@ def read_item(item_id: int, q: Union[str, None] = None):
 
 Primero instalamos las dependencias mediante Pip:
 
-```powershell{eval=False}
+```powershell
 python -m pip install fastapi[standard]
 python -m pip install uvicorn
 python -m pip freeze >> requirements.txt
@@ -80,7 +94,7 @@ python -m pip freeze >> requirements.txt
 
 Esto genera un archivo con el siguiente contenido:
 
-```powershell{eval=False}
+```powershell
 fastapi[standard]==0.104.1
 uvicorn==0.24.0
 ```
@@ -89,7 +103,7 @@ Mediante el cual se puede instalar la aplicación dentro de la imagén Docker.
 
 ### Ejercicio de Exploración: Probar la Aplicación Localmente
 
-```powershell{eval=False}
+```powershell
 # Ejecutar la aplicación
 python app.py
 
@@ -102,7 +116,7 @@ python app.py
 
 ### Versión Inicial (Dockerfile.basic)
 
-```dockerfile{eval=False}
+```dockerfile
 # Dockerfile básico - Versión inicial
 FROM python:3.13.3
 
@@ -127,7 +141,7 @@ CMD ["fastapi", "run", "app/main.py", "--port", "80"]
 
 ### Construir y Probar la Imagen Básica
 
-```powershell{eval=False}
+```powershell
 # Construir la imagen
 docker build -t mi-fastapi-basic -f Dockerfile.basic .
 
@@ -146,7 +160,7 @@ docker logs fastapi-basic
 
 ### Versión Mejorada (`Dockerfile.optimized`)
 
-```dockerfile{eval=False}
+```dockerfile
 # Dockerfile optimizado con mejores prácticas
 FROM python:3.11-slim as builder
 
@@ -201,7 +215,7 @@ CMD ["fastapi", "run", "app/main.py", "--port", "80"]
 
 ### 🔍 Ejercicio de Exploración: Comparar Tamaños
 
-```powershell{eval=False}
+```powershell
 # Construir ambas versiones
 docker build -t mi-fastapi-basic -f Dockerfile.basic .
 docker build -t mi-fastapi-optimized -f Dockerfile.optimized .
@@ -220,7 +234,7 @@ curl http://localhost:8001/
 
 ### Dockerfile Multi-stage Completo (`Dockerfile.multistage`)
 
-```dockerfile{eval=False}
+```dockerfile
 # Multi-stage build para máxima optimización
 
 # --- Stage 2: Builder ---
@@ -280,7 +294,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 Con un archivo .dockerignore, podemos excluir archivos del contexto de build para hacer imágenes más ligeras:
 
-```dockerignore{eval=False}
+```dockerignore
 # Archivo .dockerignore para Python
 __pycache__/
 *.pyc
@@ -328,7 +342,7 @@ Dockerfile
 
 **Objetivo:** Reducir la imagen a menos de 100MB
 
-```dockerfile{eval=False}
+```dockerfile
 # Desafío: Dockerfile ultra-optimizado
 FROM python:3.11-alpine as builder
 
@@ -378,7 +392,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--worker
 
 ### Script de Construcción (`build.sh`)
 
-```bash{eval=False}
+```bash
 #!/bin/bash
 
 set -e  # Detener en error
@@ -433,7 +447,7 @@ echo "Tamaño: $(docker images $IMAGE_NAME:$TAG --format "table {{.Size}}" | tai
 
 ### Script de Construcción (`validate.py`)
 
-```python{eval=false}
+```python
 #!/usr/bin/env python3
 """
 Script de validación para el laboratorio Docker
