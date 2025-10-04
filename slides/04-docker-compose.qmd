@@ -6,7 +6,7 @@ author:
   - name: Francisco Palm
     orcid: 0000-0002-1293-0868
     email: fpalm@qu4nt.com
-    affiliations: qu4nt, activistasxsl
+    affiliations: qu4nt
 format:
   clean-revealjs
 html-math-method:
@@ -22,7 +22,6 @@ logo: images/qu4nt-logo.png
 ---
 
 ## El problema: Aplicaciones multi-contenedor
-
 
 **¿Te ha pasado esto?**
 
@@ -40,8 +39,9 @@ docker run -d --name app --link db --link web --link cache nodejs
 - Orden de inicio crítico
 - Configuración dispersa
 
+## Problemas con aplicaciones multi-contenedor
 
-```{{mermaid}}
+```{mermaid}
 graph TB
     A[MySQL] --> B[¿Inició primero?]
     C[Redis] --> D[¿Depende de MySQL?]
@@ -57,7 +57,8 @@ graph TB
 **Solución necesaria:** Orquestación simplificada
 
 Imagina que cada contenedor es un músico:  
-uno toca la guitarra (la base de datos), otro la batería (el backend), y otro el teclado (el frontend).  
+uno toca la guitarra (la base de datos), otro la batería (el backend), y otro el teclado (el frontend). 
+
 **Docker Compose** es el director que los hace tocar juntos en armonía.
 
 ---
@@ -93,20 +94,18 @@ Cuando trabajas con múltiples contenedores:
 - Partitura (docker-compose.yml) → Música (aplicación ejecutándose)
 
 > 🎼 **Piensa en `docker-compose.yml` como una partitura musical**:
-
 > Define qué “instrumentos” (servicios) tocan, cómo se conectan y qué “notas” (configuraciones) usan.
 
 ---
 
+## Beneficios clave de Docker Compose
 
-**Beneficios clave:**
-
-- Una sola command para levantar toda la app
+- Una sola comando para levantar toda la aplicación
 - Configuración versionable
 - Reproducible en cualquier entorno
 
 ```{mermaid}
-graph TB
+graph LR
     A[docker-compose.yml] --> B[Docker Compose]
     B --> C[Redes]
     B --> D[Volúmenes]
@@ -179,7 +178,7 @@ volumes:
 ## Conceptos fundamentales de Compose
 
 ```{mermaid}
-graph TB
+graph LR
     A[Compose Concepts] --> B[Services]
     A --> C[Networks]
     A --> D[Volumes]
@@ -215,15 +214,12 @@ services:
 ```
 
 > 💡 **Claves importantes**:
+
 > - **`depends_on`**: asegura que `db` se inicie antes que `api`  
 >   (¡pero no espera a que esté "listo"! Solo a que el contenedor arranque)
 > - **`DB_HOST=db`**: usa el **nombre del servicio** como hostname → ¡gracias a la red de Compose!
 
----
-
-
 ## Services: El corazón de Compose
-
 
 **¿Qué es un servicio?**
 
@@ -239,6 +235,7 @@ services:
 - `volumes` y `networks`
 - `depends_on` para dependencias
 
+## Services: El corazón de Compose 2
 
 ```{mermaid}
 graph LR
@@ -257,14 +254,12 @@ graph LR
 
 ## Redes: ¿Cómo se comunican los contenedores?
 
-
 **Comportamiento por defecto:**
 
 - Docker Compose crea una red privada para tus servicios.
 - DNS automático usando nombres de servicio
 - Tu API puede llamar a `http://db:5432` sin saber la IP.
 - Puedes definir redes personalizadas si necesitas aislar grupos de otras aplicaciones
-
 
 **Comunicación simplificada:**
 
@@ -273,9 +268,11 @@ graph LR
 # sin conocer la IP real
 ```
 
+## Redes: ¿Cómo se comunican los contenedores? 2
+
 ```{mermaid}
 graph LR
-  A[Frontend] -->|http://api:3000| B(API)
+  A[Frontend] -->|"http:#47;#47;api:3000"| B(API)
   B -->|db:5432| C[(Base de Datos)]
   B -->|redis:6379| D[(Redis Cache)]
 ```
@@ -285,7 +282,7 @@ graph LR
 
 ```{mermaid}
 graph TB
-    A[compose-app_default] --> B[web]
+    A["compose-app_default"] --> B[web]
     A --> C[app]
     A --> D[database]
     A --> E[cache]
@@ -301,7 +298,6 @@ graph TB
 
 ## Dependencias y orden de inicio de los servicios
 
-
 **`depends_on`:**
 
 - Controla el orden de inicio
@@ -315,11 +311,12 @@ graph TB
 
 > ⚠️ **Importante**: `depends_on` **no espera a que el servicio esté "listo"**, solo que se haya iniciado.
 
+## Dependencias y orden de inicio de los servicios 2
+
 **Solución avanzada:**
 
 - Healthchecks
 - Scripts de espera personalizados
-
 
 ```{mermaid}
 graph LR
@@ -340,7 +337,7 @@ services:
     depends_on:
       - database
 ```
----
+
 
 ## Variables de entorno y configuraciones
 
@@ -357,12 +354,15 @@ services:
 
 > 🔐 Usa archivos `.env` para valores sensibles:
 
-```env
+```yaml
 DB_PASS=supersecreto123
 API_KEY=abc123
 ```
 
 Compose los carga **automáticamente** si existe un `.env` en la misma carpeta.
+
+
+## Variables de entorno y configuraciones 2
 
 **Archivos de entorno:**
 
@@ -373,21 +373,18 @@ Compose los carga **automáticamente** si existe un `.env` en la misma carpeta.
 
 Diferentes configuraciones por entorno
 
-
 ```{mermaid}
 graph TB
-    A[.env file] --> B[Compose Interpolation]
-    C[env_file:] --> B
-    B --> D[Final Configuration]
-    
-    style A fill:#e1f5fe
-    style C fill:#f3e5f5
+  A[".env file"] --> B[Interpolación de Compose]
+  C["env_file:"] --> B
+  B --> D[COnfiguración Final]
+  
+  style A fill:#e1f5fe
+  style C fill:#f3e5f5
 ```
 
----
 
 ## Volúmenes y persistencia en Compose
-
 
 **Tipos de volúmenes:**
 
@@ -395,7 +392,7 @@ graph TB
 - **Bind mounts:** Directorios del host
 - **Anonymous volumes:** Temporales
 
-**En Compose:**
+## Volúmenes y persistencia en Compose 2
 
 ```yaml
 services:
@@ -410,7 +407,7 @@ volumes:
 
 ```{mermaid}
 graph TB
-    A[Named Volume] --> B[Persiste entre deploys]
+    A[Named Volume] --> B[Persiste entre despliegues]
     C[Bind Mount] --> D[Desarrollo]
     E[Anonymous] --> F[Temporal]
     
@@ -430,7 +427,7 @@ Con Compose puedes **escalar servicios** fácilmente:
 ```bash
 docker-compose up --scale api=3
 ```
----
+
 
 > 🎻 Ahora tienes **3 instancias del API** corriendo simultáneamente.  
 > (Ideal para pruebas de carga o balanceo simple)
@@ -441,23 +438,11 @@ docker-compose up --scale api=3
 ---
 
 
-**Escala horizontal simple:**
+## Escala horizontal simple
 
 ```bash
 docker-compose up --scale web=3 --scale api=2
 ```
-
-**Límites:**
-
-- Compose no hace load balancing
-- Útil para desarrollo y testing
-- Producción necesita más herramientas
-
-**Caso de uso típico:**
-
-- Probar cómo se comporta la app con múltiples instancias
-- Desarrollo de características de concurrencia
-
 
 ```{mermaid}
 graph TB
@@ -472,11 +457,18 @@ graph TB
     style E fill:#e1f5fe
 ```
 
+**Límites:**
 
----
+- Compose no hace load balancing
+- Útil para desarrollo y testing
+- Producción necesita más herramientas
+
+**Caso de uso típico:**
+
+- Probar cómo se comporta la app con múltiples instancias
+- Desarrollo de características de concurrencia
 
 ## Perfiles: Organizando servicios
-
 
 **Para diferentes contextos:**
 
@@ -495,7 +487,7 @@ services:
     profiles: ["development"]
 ```
 
-**Uso:**
+## Uso de perfiles
 
 ```bash
 docker-compose --profile frontend up
@@ -514,11 +506,7 @@ graph TB
     D --> G[Servicios de test]
 ```
 
-
----
-
 ## Docker Compose vs Docker Swarm
-
 
 **Docker Compose:**
 
@@ -535,23 +523,39 @@ graph TB
 - Escalado automático
 
 
+## Docker Compose vs Docker Swarm 2
+
+::: {.columns}
+
+::: {.column width="50%"}
+
 ```{mermaid}
 graph TB
     A[Compose] --> B[1 Host]
     B --> C[App Completa]
     
+    style A fill:#e1f5fe
+```
+:::
+
+::: {.column width="50%"}
+
+```{mermaid}
+graph TB
     D[Swarm] --> E[Múltiples Hosts]
     E --> F[Cluster]
     F --> G[Alta Disponibilidad]
     
-    style A fill:#e1f5fe
     style D fill:#c8e6c9
 ```
+
+:::
+
+:::
 
 ---
 
 ## Introducción a Docker Swarm
-
 
 **¿Qué es?**
 
@@ -559,7 +563,7 @@ graph TB
 - Convierte múltiples hosts en un cluster
 - Gestiona despliegues, escalado, y alta disponibilidad
 
-**Conceptos clave:**
+## Docker Swarm: Conceptos clave
 
 - **Manager nodes:** Gestionan el cluster
 - **Worker nodes:** Ejecutan los contenedores
@@ -593,7 +597,7 @@ graph TB
 - Load balancing integrado
 - Health checks y auto-recovery
 
-**Ejemplo:**
+## Ejemplo con Docker Swarm
 
 ```bash
 docker service create --name web --replicas 3 nginx
@@ -617,7 +621,6 @@ graph TB
 
 ## Stacks: Compose en producción
 
-
 **¿Qué son?**
 
 - Deploys de aplicaciones multi-servicio en Swarm
@@ -630,7 +633,7 @@ graph TB
 docker stack deploy -c docker-compose.yml myapp
 ```
 
-**Ventajas:**
+## Ventajas de los Stacks
 
 - Misma configuración que desarrollo
 - Despliegue declarativo
@@ -667,7 +670,7 @@ services:
       retries: 3
 ```
 
-**Comportamiento:**
+## Comportamiento de los Health Checks
 
 - Swarm rerutea tráfico lejos de instancias enfermas
 - Compose puede esperar a que los servicios estén listos
@@ -693,7 +696,7 @@ graph LR
 **1. Aplicación web tradicional:**
 
 ```{mermaid}
-graph TB
+graph LR
     A[Load Balancer] --> B[Web Servers]
     B --> C[App Servers]
     C --> D[Database]
@@ -708,10 +711,13 @@ graph LR
     A --> D[Service C]
 ```
 
+
+## Patrones comunes de orquestación 2
+
 **3. Worker queues:**
 
 ```{mermaid}
-graph TB
+graph LR
     A[API] --> B[Message Queue]
     B --> C[Workers]
 ```
@@ -735,7 +741,7 @@ graph LR
 - **Configs:** Archivos de configuración no sensibles
 - **Secrets:** Información sensible (passwords, API keys)
 
-**En Swarm:**
+## Configuraciones en Swarm
 
 ```yaml
 services:
@@ -779,7 +785,7 @@ graph TB
 - Estrategias de despliegue (rolling updates)
 - Logs centralizados y monitoreo
 
-**En resumen:**
+## En resumen
 
 1. **Separa entornos**: usa `docker-compose.dev.yml`, `docker-compose.test.yml`
 2. **No expongas puertos innecesarios** al host (solo lo que necesites acceder desde fuera)
@@ -849,17 +855,31 @@ graph TB
 
 ## Flujo de trabajo ideal con Compose
 
+::: {.columns}
+::: {.column width="50%"}
+
+\
+
 **Es un ciclo rápido, repetible y consistente**, perfecto para equipos.
 
+:::
+::: {.column width="50%"}
 ```{mermaid}
-flowchart LR
+flowchart TB
   A[Editar docker-compose.yml] --> B[docker-compose up -d]
   B --> C[Desarrollar y probar]
-  C --> D[docker-compose logs -f]
-  D --> E[Debuggear con docker-compose exec]
+  C --> D["docker-compose logs -f"]
+  D --> E[Debuggear con
+  docker-compose exec]
   E --> F[docker-compose down]
-  F -->|Opcional| G[docker-compose down -v\n(borra volúmenes)]
+  F -->|Opcional| G["docker-compose down -v
+  (borra volúmenes)"]
+
+  G ~~~ E
+  G ~~~ F
 ```
+:::
+:::
 
 ---
 
@@ -874,6 +894,9 @@ flowchart LR
 
 - Compose genera nombres como `miapp_db_1` → pero si defines `container_name`, pierdes escalabilidad.
 - **Mejor no usar `container_name`** → deja que Compose gestione los nombres.
+
+
+## Buenas prácticas con Docker Compose 2
 
 ### 3. Separa entornos
 
@@ -905,10 +928,21 @@ flowchart LR
 
 ```{mermaid}
 graph TD
-  ComposeFile["docker-compose.yml"] --> ServicioAPI["api:\n  build: ./fastapi\n  ports: [8000:8000]\n  environment:\n    - DB_HOST=db"]
-  ComposeFile --> ServicioDB["db:\n  image: postgres\n  volumes:\n    - db_data:/var/lib..."]
-  ComposeFile --> ServicioPGAdmin["pgadmin:\n  image: dpage/pgadmin4\n  ports: [8080:80]"]
-  ServicioAPI --> Red["Red: default (creada por Compose)"]
+  ComposeFile["docker-compose.yml"] --> ServicioAPI["
+  api:
+    build: ./fastapi
+      ports: [8000:8000]
+    environment:
+        - DB_HOST=db"]
+  ComposeFile --> ServicioDB["db:
+    image: postgres
+    volumes:
+        - db_data:/var/lib..."]
+  ComposeFile --> ServicioPGAdmin["pgadmin:
+    image: pgadmin4
+      ports: [8080:80]"]
+  ServicioAPI --> Red["Red: default
+  (creada por Compose)"]
   ServicioDB --> Red
   ServicioPGAdmin --> Red
   ServicioDB --> Volumen["Volumen: db_data"]
