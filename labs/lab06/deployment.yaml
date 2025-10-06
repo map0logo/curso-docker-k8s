@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-deployment
+  labels:
+    app: fastapi-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fastapi-app
+  template:
+    metadata:
+      labels:
+        app: fastapi-app
+    spec:
+      containers:
+      - name: fastapi-app
+        image: fastapi-app:v1
+        ports:
+        - containerPort: 8000
+        env:
+          # Variables desde ConfigMap
+          - name: DATABASE_URL
+            valueFrom:
+              configMapKeyRef:
+                name: fastapi-config
+                key: database.url
+          - name: APP_ENVIRONMENT
+            valueFrom:
+              configMapKeyRef:
+                name: fastapi-config
+                key: app.environment
+          - name: LOG_LEVEL
+            valueFrom:
+              configMapKeyRef:
+                name: fastapi-config
+                key: log.level
+          
+          # Variables desde Secret
+          - name: DB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: fastapi-secrets
+                key: database.username
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: fastapi-secrets
+                key: database.password
+          - name: API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: fastapi-secrets
+                key: api.key
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fastapi-config
+data:
+  database.url: "postgresql://postgres-service:5432/mydatabase"
+  app.environment: "development"
+  app.version: "1.0.0"
+  log.level: "INFO"

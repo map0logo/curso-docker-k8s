@@ -1,0 +1,816 @@
+---
+title: "Laboratorio: Configuración y Exposición de un Despliegue con Kubernetes.*"
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html:
+    toc: true
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
+---
+
+## Laboratorio: Configuración y Exposición de un Deployment
+
+### Objetivos de Aprendizaje
+
+Al finalizar este laboratorio, los participantes podrán:
+
+- Crear y gestionar ConfigMaps para configuración no sensible
+- Gestionar Secrets para información confidencial
+- Inyectar configuración en Deployments mediante variables de entorno
+- Exponer aplicaciones usando diferentes tipos de Services
+- Entender las diferencias entre ClusterIP, NodePort y LoadBalancer
+
+### Prerrequisitos
+
+- Laboratorio anterior completado (Minikube y kubectl funcionando)
+- Aplicación FastAPI de sesiones anteriores disponible
+- Conocimientos básicos de YAML y línea de comandos
+
+---
+
+## Parte 1: Preparar la Aplicación FastAPI
+
+### Revisar la Aplicación Existente
+
+Asumimos que tenemos una aplicación FastAPI con la siguiente estructura básica:
+
+**app.py:**
+```python
+from fastapi import FastAPI, HTTPException
+import os
+import asyncpg
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# Configuración desde variables de entorno
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost:5432/mydb")
+DB_USERNAME = os.getenv("DB_USERNAME", "admin")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
+
+class Item(BaseModel):
+    name: str
+    description: str = None
+
+@app.get("/")
+async def read_root():
+    return {
+        "message": "Bienvenido a FastAPI en Kubernetes",
+        "database_url": DATABASE_URL,
+        "database_connected": False  # En producción verificar conexión real
+    }
+
+@app.get("/items/")
+async def read_items():
+    return {"items": ["item1", "item2", "item3"]}
+
+@app.post("/items/")
+async def create_item(item: Item):
+    return {
+        "message": "Item creado",
+        "item": item.dict(),
+        "database_config": {
+            "url": DATABASE_URL,
+            "username": DB_USERNAME
+        }
+    }
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "fastapi-app"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+**requirements.txt:**
+```txt
+fastapi==0.104.1
+uvicorn==0.24.0
+asyncpg==0.29.0
+pydantic==2.5.0
+```
+
+**Dockerfile:**
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+---
+
+## Parte 2: Construir y Publicar la Imagen
+
+### Construir la Imagen Docker
+
+```bash
+# Evaluar el entorno Docker de Minikube
+eval $(minikube docker-env)
+
+# Construir la imagen
+docker build -t fastapi-app:v1 .
+
+# Verificar la imagen
+docker images | grep fastapi-app
+```
+
+### Verificar Minikube
+
+```bash
+# Verificar que Minikube está funcionando
+minikube status
+
+# Verificar los nodos disponibles
+kubectl get nodes
+```
+
+---
+
+## Parte 3: Crear ConfigMaps y Secrets
+
+### Crear ConfigMap para Configuración No Sensible
+
+**configmap.yaml:**
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fastapi-config
+data:
+  database.url: "postgresql://postgres-service:5432/mydatabase"
+  app.environment: "development"
+  app.version: "1.0.0"
+  log.level: "INFO"
+```
+
+### Crear Secret para Información Sensible
+
+**secret.yaml:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fastapi-secrets
+type: Opaque
+data:
+  # Los valores deben estar en base64
+  # echo -n "admin" | base64 -> YWRtaW4=
+  # echo -n "mysecretpassword" | base64 -> bXlzZWNyZXRwYXNzd29yZA==
+  database.username: YWRtaW4=
+  database.password: bXlzZWNyZXRwYXNzd29yZA==
+  api.key: c2VjcmV0LWFwaS1rZXktZm9yLWF1dGg=
+```
+
+**💡 Nota:** En un entorno real, estos secrets deberían gestionarse mediante herramientas como Helm Secrets, Sealed Secrets, o servicios cloud de gestión de secrets.
+
+### Aplicar ConfigMap y Secret
+
+```bash
+# Aplicar ConfigMap
+kubectl apply -f configmap.yaml
+
+# Aplicar Secret
+kubectl apply -f secret.yaml
+
+# Verificar la creación
+kubectl get configmaps
+kubectl get secrets
+
+# Ver detalles del ConfigMap
+kubectl describe configmap fastapi-config
+
+# Ver detalles del Secret (los valores no se muestran)
+kubectl describe secret fastapi-secrets
+```
+
+---
+
+## Parte 4: Crear el Deployment con Configuración
+
+### Deployment con Variables de Entorno
+
+**deployment.yaml:**
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-deployment
+  labels:
+    app: fastapi-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fastapi-app
+  template:
+    metadata:
+      labels:
+        app: fastapi-app
+    spec:
+      containers:
+      - name: fastapi-app
+        image: fastapi-app:v1
+        ports:
+        - containerPort: 8000
+        env:
+          # Variables desde ConfigMap
+          - name: DATABASE_URL
+            valueFrom:
+              configMapKeyRef:
+                name: fastapi-config
+                key: database.url
+          - name: APP_ENVIRONMENT
+            valueFrom:
+              configMapKeyRef:
+                name: fastapi-config
+                key: app.environment
+          - name: LOG_LEVEL
+            valueFrom:
+              configMapKeyRef:
+                name: fastapi-config
+                key: log.level
+          
+          # Variables desde Secret
+          - name: DB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: fastapi-secrets
+                key: database.username
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: fastapi-secrets
+                key: database.password
+          - name: API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: fastapi-secrets
+                key: api.key
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+```
+
+### Aplicar el Deployment
+
+```bash
+# Aplicar el deployment
+kubectl apply -f deployment.yaml
+
+# Verificar el estado del deployment
+kubectl get deployments
+kubectl get pods -l app=fastapi-app
+
+# Ver logs de uno de los pods
+kubectl logs -l app=fastapi-app --tail=50
+
+# Ver detalles del deployment
+kubectl describe deployment fastapi-deployment
+```
+
+---
+
+## Parte 5: Exponer la Aplicación con Services
+
+### Service Tipo ClusterIP (Interno)
+
+**service-clusterip.yaml:**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-clusterip-service
+spec:
+  type: ClusterIP
+  selector:
+    app: fastapi-app
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+```
+
+### Service Tipo NodePort (Para Pruebas)
+
+**service-nodeport.yaml:**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-nodeport-service
+spec:
+  type: NodePort
+  selector:
+    app: fastapi-app
+  ports:
+  - port: 80
+    targetPort: 8000
+    nodePort: 30007  # Rango: 30000-32767
+    protocol: TCP
+```
+
+### Service Tipo LoadBalancer (Para Exposición Externa)
+
+**service-loadbalancer.yaml:**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-loadbalancer-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: fastapi-app
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+```
+
+### Aplicar los Services
+
+```bash
+# Aplicar ClusterIP Service
+kubectl apply -f service-clusterip.yaml
+
+# Aplicar NodePort Service  
+kubectl apply -f service-nodeport.yaml
+
+# Aplicar LoadBalancer Service
+kubectl apply -f service-loadbalancer.yaml
+
+# Ver todos los services
+kubectl get services
+
+# Ver detalles específicos
+kubectl describe service fastapi-clusterip-service
+kubectl describe service fastapi-nodeport-service
+kubectl describe service fastapi-loadbalancer-service
+```
+
+---
+
+## Parte 6: Probar los Diferentes Services
+
+### Probar ClusterIP Service (Interno)
+
+```bash
+# Acceder desde dentro del cluster
+kubectl run test-pod --image=busybox --rm -it --restart=Never -- sh
+
+# Dentro del pod, probar el servicio ClusterIP
+wget -q -O - http://fastapi-clusterip-service/
+exit
+```
+
+### Probar NodePort Service
+
+```bash
+# Obtener la IP de Minikube
+minikube ip
+
+# Obtener el NodePort asignado
+kubectl get service fastapi-nodeport-service
+
+# Acceder usando curl (reemplazar IP y PUERTO)
+curl http://$(minikube ip):30007/
+
+# O usar el comando de minikube
+minikube service fastapi-nodeport-service --url
+```
+
+### Probar LoadBalancer Service
+
+```bash
+# En Minikube, LoadBalancer requiere tunnel
+minikube tunnel
+
+# En otra terminal, probar el servicio
+kubectl get service fastapi-loadbalancer-service
+
+# Usar la IP externa asignada (puede tomar unos minutos)
+curl http://<EXTERNAL-IP>/
+```
+
+En el caso del LoadBalancer el problema básico es que es necesario ser root para ofrecer acceso a "puertos privilegiados" (ports < 1024).
+
+Hay varias tácticas en Linux para hacerlo. En el caso de Minikube es necesario ser root. Correr `sudo minikube start` no es recomendable porque crear otro perfil como root.
+
+Se pueden sincronizar los perfiles entre el usuario y root copiando la configuración de Minikube en el perfil root.
+
+La solución más sencilla es:
+
+```bash
+# Redirección de puertos simple
+kubectl port-forward service/fastapi-loadbalancer-service 8080:80
+
+# En otro terminal:
+curl http://localhost:8080/
+```
+
+## Parte 7: Verificación y Troubleshooting
+
+### Verificar Configuración en los Pods
+
+```bash
+# Ver variables de entorno en un pod
+kubectl exec -it $(kubectl get pods -l app=fastapi-app -o jsonpath='{.items[0].metadata.name}') -- env | grep -E "DATABASE|DB_|APP_"
+
+# Ver logs de la aplicación
+kubectl logs -l app=fastapi-app --tail=10
+
+# Ver eventos del cluster
+kubectl get events --sort-by='.lastTimestamp'
+```
+
+### Probar Endpoints de la Aplicación
+
+```bash
+# Obtener URL del servicio
+SERVICE_URL=$(minikube service fastapi-nodeport-service --url)
+
+# Probar endpoints
+curl $SERVICE_URL/
+curl $SERVICE_URL/health
+curl $SERVICE_URL/items/
+
+# Probar creación de item
+curl -X POST "$SERVICE_URL/items/" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "test item", "description": "item from curl"}'
+```
+
+---
+
+## Parte 8: Ejercicios Prácticos
+
+### Ejercicio 1: Modificar Configuración
+
+**Objetivo:** Actualizar el ConfigMap y observar los cambios
+
+```bash
+# Editar el ConfigMap
+kubectl edit configmap fastapi-config
+
+# Cambiar log.level de "INFO" a "DEBUG"
+# Los pods deberían recoger el cambio automáticamente
+
+kubectl describe configmap fastapi-config
+```
+
+### Ejercicio 2: Escalar la Aplicación
+
+```bash
+# Escalar a 5 réplicas
+kubectl scale deployment fastapi-deployment --replicas=5
+
+# Verificar la distribución
+kubectl get pods -o wide
+
+# Ver cómo el servicio balancea la carga
+curl $SERVICE_URL/ | grep "hostname"
+```
+
+Esto no ocurre porque la aplicación no tiene un endpoint para obtener el hostname.
+
+Para lograrlo le añadimos el endpoint a la aplicación:
+
+```python
+import socket
+#...
+
+@app.get("/hostname")
+def get_hostname():
+    return {"pod_hostname": socket.gethostname()}
+```
+
+Entonces, hay que reconstruir la imagen:
+
+```bash
+docker build -t fastapi-app:v1 .
+```
+
+Desplegar la nueva imagen:
+
+```bash
+kubectl apply -f deployment.yaml
+```
+
+Y aplicar los cambios:
+
+```bash
+kubectl rollout restart deployment/fastapi-deployment
+
+# Verificar el estado
+kubectl rollout status deployment/fastapi-deployment
+```
+
+Desafío: Crea un script para actualizar el despliegue en caso de cambios en el código. ¿Qué comandos debería tener?
+
+### Ejercicio 3: Simular Fallo y Recuperación
+
+```bash
+# Eliminar un pod manualmente
+kubectl delete pod $(kubectl get pods -l app=fastapi-app -o jsonpath='{.items[0].metadata.name}')
+
+# Observar la recreación automática
+kubectl get pods -w
+```
+
+---
+
+## Parte 9: Preguntas de Reflexión
+
+1. **¿Cuál es la diferencia principal entre ClusterIP, NodePort y LoadBalancer?**
+
+2. **¿Por qué es mejor usar Secrets en lugar de ConfigMaps para información sensible?**
+
+3. **¿Qué sucede si modificamos un ConfigMap después de desplegar la aplicación?**
+
+4. **¿Cuándo usarías NodePort vs LoadBalancer?**
+
+---
+
+## Parte 10: Limpieza
+
+```bash
+# Eliminar recursos creados
+kubectl delete -f service-loadbalancer.yaml
+kubectl delete -f service-nodeport.yaml
+kubectl delete -f service-clusterip.yaml
+kubectl delete -f deployment.yaml
+kubectl delete -f secret.yaml
+kubectl delete -f configmap.yaml
+
+# Verificar que todo está limpio
+kubectl get all
+```
+
+---
+
+## Resumen de Comandos Clave
+
+```bash
+# Crear ConfigMap desde archivo
+kubectl create configmap my-config --from-file=config.properties
+
+# Crear Secret desde literal
+kubectl create secret generic my-secret --from-literal=password=secret
+
+# Ver variables de entorno en pods
+kubectl exec <pod-name> -- env
+
+# Depurar servicios
+kubectl describe service <service-name>
+kubectl get endpoints <service-name>
+
+# Port forwarding para debugging
+kubectl port-forward deployment/fastapi-deployment 8080:8000
+```
+
+## Creación de Servicios en Kubernetes
+
+```{mermaid}
+flowchart TD
+    A[🎯 Desarrollo Local] --> B[app.py FastAPI<br/>+ nuevo endpoint]
+    B --> C[Dockerfile]
+    
+    C --> D[🚀 Construcción de Imagen]
+    D --> E[docker build -t app:latest]
+    D --> F[eval minikube docker-env]
+    D --> G[Push to Registry]
+    
+    E & F & G --> H[📦 Archivos YAML K8s]
+    
+    H --> I[Deployment<br/>Gestiona Pods]
+    I --> J[Service<br/>Balance de Carga]
+    I --> K[ConfigMap<br/>Configuración]
+    
+    J --> L[ClusterIP<br/>Interno]
+    J --> M[NodePort<br/>Externo]
+    J --> N[LoadBalancer<br/>Cloud]
+    
+    L & M & N --> O[🏃 Aplicación en K8s]
+    O --> P[kubectl apply -f]
+    P --> Q[Pods creados<br/>1..n réplicas]
+    P --> R[Service expuesto]
+    
+    Q --> S[Endpoints<br/>IPs de los Pods]
+    R --> S
+    
+    S --> T[🔌 Acceso a la Aplicación]
+    
+    T --> U[kubectl port-forward]
+    T --> V[minikube tunnel]
+    T --> W[NodePort<br/>IP:PUERTO]
+    T --> X[LoadBalancer<br/>IP Externa]
+    
+    U --> Y[curl localhost:8080]
+    V --> Y
+    W --> Z[curl IP:PUERTO]
+    X --> Z
+```
+
+
+## Comandos por Etapa del Despliegue
+
+```{mermaid}
+flowchart TB
+    subgraph A [💻 Desarrollo]
+        A1[Crear app.py]
+        A2[Nuevo endpoint]
+        A3[Test local uvicorn]
+    end
+    
+    subgraph B [🔨 Construcción]
+        B1[docker build -t app:latest]
+        B2[eval minikube docker-env]
+        B3[minikube image load]
+    end
+    
+    subgraph C [🚀 Despliegue]
+        C1[kubectl apply -f<br/>deployment.yaml]
+        C2[kubectl apply -f<br/>service.yaml]
+    end
+    
+    subgraph D [✅ Validación]
+        D1[kubectl get pods]
+        D2[kubectl get services]
+        D3[curl endpoint]
+    end
+    
+    A --> B
+    B --> C
+    C --> D
+    
+    B --> E[📦 Image Ready<br/>app:latest]
+    C --> F[⚙️ K8s Resources<br/>Created/Running]
+    
+    E & F --> G[🎯 Application Running]
+    
+    G --> H[kubectl port-forward]
+    G --> I[NodePort Access]
+    G --> J[LoadBalancer Access]
+
+    style A fill:#d5e8d4
+    style B fill:#d5e8d4
+    style C fill:#d5e8d4
+    style D fill:#d5e8d4
+```
+
+## Flujo de Actualización con Rollout
+
+```{mermaid}
+sequenceDiagram
+    participant D as Developer
+    participant R as Registry
+    participant K as Kubernetes
+    participant P as Pods
+    participant S as Service
+    
+    Note over D: 🔄 Cambio en Aplicación
+    D->>D: 1. Modificar app.py<br/>2. Test local<br/>3. Nuevo endpoint
+    
+    Note over D: 🏗️ Construcción
+    D->>R: docker build -t app:v2
+    D->>R: minikube image load
+    
+    Note over K: 🚀 Re-despliegue
+    D->>K: kubectl set image deployment/app app=app:v2
+    K->>P: Crear nuevos pods (v2)
+    P->>P: Containers starting...
+    P->>K: Pods ready (v2)
+    K->>P: Eliminar pods antiguos (v1)
+    
+    Note over S: ✅ Verificación
+    D->>S: kubectl rollout status deployment/app
+    S->>D: Deployment rollout complete
+    D->>S: curl nuevo-endpoint
+    S->>D: 200 OK - Nuevo endpoint funcionando
+    
+    Note over P,S: 🎯 Aplicación Actualizada<br/>Zero Downtime
+```
+
+## Balanceo de Carga
+
+```{mermaid}
+flowchart TB
+    subgraph Test [🧪 Testing de Balanceo]
+        T1[for i in 1..20]
+        T2[curl /hostname]
+        T3[Contar respuestas por pod]
+    end
+    
+    subgraph Results [📊 Resultados Esperados]
+        R1[Pod-1: 4 requests 20%]
+        R2[Pod-2: 4 requests 20%]
+        R3[Pod-3: 4 requests 20%]
+        R4[Pod-4: 4 requests 20%]
+        R5[Pod-5: 4 requests 20%]
+    end
+    
+    subgraph Script [📜 Script de Validación]
+        S1[#!/bin/bash]
+        S2[MINIKUBE_IP=minikube ip]
+        S3[NODE_PORT=kubectl get service]
+        S4[for i in 1..50 do]
+        S5[hostname=curl /hostname]
+        S6[counthostname++]
+        S7[done]
+    end
+    
+    T1 --> T2 --> T3
+    T3 --> R1 & R2 & R3 & R4 & R5
+    Script --> Test
+
+    style Test fill:#d5e8d4
+    style Results fill:#d5e8d4
+    style Script fill:#d5e8d4
+```
+
+## Objetos Kubernetes
+
+
+```{mermaid}
+erDiagram
+    DEPLOYMENT ||--o{ POD : manages
+    DEPLOYMENT {
+        string name
+        int replicas
+        string image
+    }
+    
+    POD ||--o{ CONTAINER : contains
+    POD {
+        string name
+        string ip
+        string status
+    }
+    
+    CONTAINER {
+        string name
+        string image
+        int port
+    }
+    
+    SERVICE ||--o{ POD : selects
+    SERVICE {
+        string name
+        string type
+        int port
+        int targetPort
+    }
+    
+    CONFIGMAP ||--o{ DEPLOYMENT : configures
+    CONFIGMAP {
+        string name
+        string data
+    }
+    
+    ENDPOINTS ||--o{ POD : references
+    ENDPOINTS {
+        string serviceName
+        array podIPs
+    }
+```
+
+
+**🎉 ¡Laboratorio Completado!** Has aprendido a configurar y exponer aplicaciones en Kubernetes usando ConfigMaps, Secrets y diferentes tipos de Services.
+
+
