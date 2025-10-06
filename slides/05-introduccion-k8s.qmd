@@ -132,7 +132,9 @@ Las empresas con aplicaciones monolíticas antiguas se enfrentan a un desafío: 
 
 ```{mermaid}
 graph LR
-    A[Monolito] -->|Refactorización Masiva| B[Nuevo Sistema de Microservicios]
+    A[Monolito] -->|"Refactorización
+    Masiva"| B["Nuevo Sistema
+    de Microservicios"]
 ```
 
 ## Refactorización: Dos Enfoques Principales 2
@@ -248,8 +250,10 @@ K-u-b-e-r-n-e-t-e-s (8 letras en medio) → ¡Ahorramos tiempo!
 
 ```{mermaid}
 graph LR
-    A[**Aplicación Monolítica**] --> B[Problemas: Escala difícil, Fallo único]
-    B --> C[Microservicios en Contenedores]
+    A[**Aplicación Monolítica**] --> B["Problemas: Escala difícil,
+    Fallo único"]
+    B --> C["Microservicios
+    en Contenedores"]
     C --> D["Nuevos Problemas
     Orquestación compleja"]
     D --> E[**Kubernetes al Rescate!**]
