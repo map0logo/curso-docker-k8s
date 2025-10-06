@@ -24,9 +24,8 @@ logo: images/qu4nt-logo.png
 
 ## El problema: Exponiendo múltiples servicios web
 
-::: {.columns}
-::: {.column width="50%"}
 **Escenario tradicional:**
+
 ```bash
 # ¡Demasiados puertos!
 Service A: LoadBalancer → puerto 30000
@@ -39,10 +38,9 @@ Service C: LoadBalancer → puerto 30002
 - Múltiples direcciones IP/LB
 - No hay enrutamiento por dominio o path
 - Costoso en cloud (cada LB cuesta $)
-:::
 
-::: {.column width="50%"}
-```mermaid
+
+```{mermaid}
 graph TB
     A[Usuario] --> B[app1.com:30000]
     A --> C[app2.com:30001]
@@ -56,8 +54,8 @@ graph TB
     style C fill:#ffebee
     style D fill:#ffebee
 ```
-:::
-:::
+
+
 
 **¿No sería mejor tener `miapp.com/api` y `miapp.com/web`?**
 
@@ -65,22 +63,23 @@ graph TB
 
 ## La solución: Ingress - El "router inteligente" de Kubernetes
 
-::: {.columns}
-::: {.column width="60%"}
+
+
 **¿Qué es Ingress?**
+
 - API object que gestiona acceso externo a servicios
 - Actúa como un "reverse proxy" en el cluster
 - Enruta tráfico basado en reglas (host/path)
 
 **Beneficios:**
+
 - Un único punto de entrada
 - Enrutamiento por nombre de dominio
 - Terminación SSL/TLS centralizada
 - Costo reducido (solo un LoadBalancer)
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+```{mermaid}
 graph TB
     A[🌐 Internet] --> B[Ingress]
     B --> C[/api → Service A]
@@ -89,14 +88,14 @@ graph TB
     
     style B fill:#c8e6c9
 ```
-:::
-:::
+
+
 
 ---
 
 ## Arquitectura Ingress: Dos componentes clave
 
-```mermaid
+```{mermaid}
 graph TB
     A[Usuario] --> B[LoadBalancer]
     B --> C[Ingress Controller]
@@ -116,27 +115,28 @@ graph TB
 
 ## Ingress Controller: El cerebro del enrutamiento
 
-::: {.columns}
-::: {.column width="60%}
+
+
 **¿Qué es?**
 - Pod(s) que ejecutan el proxy/reverse proxy
 - Monitorea los recursos Ingress en el cluster
 - Aplica las reglas de enrutamiento configuradas
 
 **Implementaciones populares:**
+
 - **Nginx Ingress Controller:** El más popular
 - **Traefik:** Moderno, con configuración automática
 - **HAProxy:** Alto rendimiento
 - **Istio:** Service mesh con capacidades Ingress
 
 **Funcionamiento:**
+
 - Escucha en un puerto (80/443)
 - Aplica reglas de los recursos Ingress
 - Balancea carga entre Pods
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+```{mermaid}
 graph TB
     A[Controller] --> B[Monitor Ingress]
     B --> C[Configurar Proxy]
@@ -144,29 +144,28 @@ graph TB
     
     style A fill:#f3e5f5
 ```
-:::
-:::
+
 
 ---
 
 ## Ingress Resource: Las reglas de enrutamiento
 
-::: {.columns}
-::: {.column width="60%}
+
 **¿Qué es?**
+
 - Recurso YAML que define reglas de enrutamiento
 - Especifica qué servicio atiende cada ruta
 - Configura hosts virtuales y paths
 
 **Reglas comunes:**
+
 - **Host-based:** `api.midominio.com` → Service A
 - **Path-based:** `midominio.com/api` → Service A
 - **Mixed:** `midominio.com/api` y `midominio.com/web`
 
 **Ventaja:** Configuración declarativa como todo en K8s
-:::
 
-::: {.column width="40%"}
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -185,8 +184,7 @@ spec:
             port:
               number: 80
 ```
-:::
-:::
+
 
 ---
 
@@ -224,7 +222,7 @@ spec:
 
 ## Comparación: Service vs Ingress
 
-```mermaid
+```{mermaid}
 graph TB
     A[Acceso Externo] --> B[Service LoadBalancer]
     A --> C[Ingress]
@@ -245,7 +243,7 @@ graph TB
 
 ## Flujo de tráfico con Ingress
 
-```mermaid
+```{mermaid}
 graph LR
     A[Usuario] --> B[dominio.com/uno]
     B --> C[DNS → LoadBalancer IP]
@@ -262,23 +260,23 @@ graph LR
 
 ## Más allá de los servicios web: Jobs y CronJobs
 
-::: {.columns}
-::: {.column width="60%}
+
 **Problema:** ¿Y las tareas que no son servicios continuos?
 
 **Ejemplos:**
+
 - Procesar archivos por lotes
 - Generar reportes nocturnos
 - Limpiar datos temporales
 - Backup de bases de datos
 
 **Deployment no sirve para esto:**
+
 - Deployment mantiene Pods siempre ejecutándose
 - Necesitamos Pods que se ejecuten y terminen
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+```{mermaid}
 graph TB
     A[Tareas batch] --> B[❌ Deployment]
     A --> C[✅ Jobs]
@@ -293,27 +291,29 @@ graph TB
 
 ## Jobs: Tareas que se ejecutan una vez
 
-::: {.columns}
-::: {.column width="60%}
+
+
 **¿Qué es un Job?**
+
 - Crea uno o más Pods
 - Ejecuta una tarea hasta completarse exitosamente
 - Los Pods no se reinician al terminar
 
 **Casos de uso:**
+
 - Procesamiento de datos por lotes
 - Migración de base de datos
 - Ejecución de scripts de mantenimiento
 - Trabajos de cálculo intensivo
 
 **Características clave:**
+
 - `completions`: Cuántas veces ejecutar la tarea
 - `parallelism`: Cuántos Pods ejecutar simultáneamente
 - `backoffLimit`: Reintentos ante fallos
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+```{mermaid}
 graph TB
     A[Job Created] --> B[Pod Created]
     B --> C[Task Running]
@@ -322,8 +322,7 @@ graph TB
     
     style D fill:#c8e6c9
 ```
-:::
-:::
+
 
 ---
 
@@ -348,6 +347,7 @@ spec:
 ```
 
 **Comportamiento:**
+
 - Ejecutará hasta 3 tareas exitosas
 - 2 Pods en paralelo máximo
 - Hasta 4 reintentos por tarea fallida
@@ -356,27 +356,28 @@ spec:
 
 ## CronJobs: Tareas programadas
 
-::: {.columns}
-::: {.column width="60%}
+
 **¿Qué es un CronJob?**
+
 - Como un Job, pero ejecutado en un schedule
 - Usa sintaxis cron estándar
 - Crea Jobs según la programación
 
 **Casos de uso:**
+
 - Backups nocturnos
 - Reportes diarios/semanales
 - Limpieza de datos temporales
 - Sincronización periódica
 
 **Ejemplo cron:**
+
 - `0 * * * *` = cada hora
 - `0 2 * * *` = cada día a las 2 AM
 - `*/5 * * * *` = cada 5 minutos
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+```{mermaid}
 graph TB
     A[CronJob] --> B[Schedule]
     B --> C[Create Job]
@@ -385,8 +386,8 @@ graph TB
     
     style B fill:#fff3e0
 ```
-:::
-:::
+
+
 
 ---
 
@@ -414,6 +415,7 @@ spec:
 ```
 
 **Características importantes:**
+
 - `startingDeadlineSeconds`: Tiempo máximo para iniciar
 - `concurrencyPolicy`: Permitir ejecuciones concurrentes
 - `successfulJobsHistoryLimit`: Cuántos jobs exitosos conservar
@@ -422,7 +424,7 @@ spec:
 
 ## Comparación: Deployment vs Job vs CronJob
 
-```mermaid
+```{mermaid}
 graph TB
     A[Tipo] --> B[Deployment]
     A --> C[Job]
@@ -445,7 +447,7 @@ graph TB
 
 ## Flujo completo: Arquitectura con múltiples controladores
 
-```mermaid
+```{mermaid}
 graph TB
     A[Usuario Web] --> B[Ingress]
     B --> C[Deployment - App Web]
@@ -466,10 +468,11 @@ graph TB
 
 ## Patrones comunes de uso
 
-::: {.columns}
-::: {.column width="50%}
+
+
 **Aplicación web típica:**
-```mermaid
+
+```{mermaid}
 graph TB
     A[Ingress] --> B[Deployment - Frontend]
     A --> C[Deployment - Backend]
@@ -478,11 +481,11 @@ graph TB
     E[CronJob] --> F[Job - Cleanup]
     F --> D
 ```
-:::
 
-::: {.column width="50%"}
+
 **Procesamiento de datos:**
-```mermaid
+
+```{mermaid}
 graph TB
     A[CronJob - Hourly] --> B[Job - Process Data]
     C[CronJob - Daily] --> D[Job - Generate Reports]
@@ -490,24 +493,27 @@ graph TB
     B --> E[Deployment - API]
     D --> F[Storage]
 ```
-:::
-:::
+
+
 
 ---
 
 ## Buenas prácticas con Ingress
 
 **Seguridad:**
+
 - Usa HTTPS con certificados TLS
 - Limita tráfico con network policies
 - Considera WAF (Web Application Firewall)
 
 **Configuración:**
+
 - Annotations específicas del controller
 - Timeouts apropiados para tu aplicación
 - Health checks configurados
 
 **Monitoreo:**
+
 - Logs de acceso del Ingress Controller
 - Métricas de latencia y errores
 - Alertas para reglas no satisfechas
@@ -517,16 +523,19 @@ graph TB
 ## Buenas prácticas con Jobs/CronJobs
 
 **Robustez:**
+
 - Configura `backoffLimit` apropiado
 - Usa `activeDeadlineSeconds` para timeout
 - Maneja graceful shutdown en los contenedores
 
 **Recursos:**
+
 - Requests/limits de CPU/memoria
 - Considera `ttlSecondsAfterFinished` para cleanup
 - Storage temporal si es necesario
 
 **Monitoreo:**
+
 - Alertas para Jobs fallidos
 - Logs centralizados de ejecuciones
 - Métricas de duración y éxito
@@ -547,7 +556,7 @@ graph TB
 
 ## Arquitectura completa de ejemplo
 
-```mermaid
+```{mermaid}
 graph TB
     A[🌐 Internet] --> B[Ingress]
     
@@ -574,9 +583,12 @@ graph TB
 ## ¡Dominando el tráfico y las tareas!
 
 **Hoy has aprendido:**
+
 - Ingress para enrutamiento HTTP inteligente
 - Jobs para tareas únicas y batch
 - CronJobs para tareas programadas
 - Cuándo usar cada tipo de controlador
 
-**Próximo:** Laboratorio práctico configurando Ingress para múltiples aplicaciones y automatizando tareas con CronJobs.
+**Próximo:**
+
+Laboratorio práctico configurando Ingress para múltiples aplicaciones y automatizando tareas con CronJobs.
