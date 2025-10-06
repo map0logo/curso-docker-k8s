@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-counter
+  labels:
+    app: python-counter
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: python-counter
+  template:
+    metadata:
+      labels:
+        app: python-counter
+    spec:
+      containers:
+      - name: python-counter
+        image: python-counter-app:v1
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REDIS_HOST
+          value: "redis-service"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-counter-service
+spec:
+  selector:
+    app: python-counter
+  ports:
+  - port: 80
+    targetPort: 5000
+  type: LoadBalancer
