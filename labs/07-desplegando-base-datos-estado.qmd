@@ -1,0 +1,658 @@
+---
+title: "Laboratorio: Desplegando una Base de Datos con Estado."
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html:
+    toc: true
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
+---
+
+## Laboratorio: Desplegando una Base de Datos con Estado
+
+### Objetivos de Aprendizaje
+
+Al finalizar este laboratorio, los participantes podrán:
+
+- Crear y gestionar PersistentVolumeClaims (PVC) para solicitar almacenamiento
+- Desplegar aplicaciones con estado usando StatefulSets
+- Configurar bases de datos PostgreSQL en Kubernetes
+- Verificar la persistencia de datos mediante recreación de Pods
+- Entender la diferencia entre Deployments y StatefulSets
+
+### Prerrequisitos
+
+- Laboratorio anterior completado (Minikube y kubectl funcionando)
+- Conocimientos básicos de PostgreSQL
+- Minikube configurado con storage provisioner
+
+```bash
+# Verificar que Minikube está funcionando
+minikube status
+
+# Si no está funcionando, iniciar Minikube
+minikube start
+
+# Verificar los addons de storage disponibles
+minikube addons list | grep storage
+```
+
+Poner atención en la conexión con docker:
+
+```bash
+# Verificar la conexión con docker
+docker images
+# Debería mostrar las imágenes Docker de Minikube
+
+# Habilitar el provisionador de almacenamiento si es necesario
+minikube -p minikube docker-env
+
+# Apuntar el terminal al demonio docker de Minikube
+eval $(minikube -p minikube docker-env)
+```
+
+## Parte 1: Configurar el Entorno y Verificar Storage
+
+### Verificar StorageClass en Minikube
+
+```bash
+# Verificar las StorageClasses disponibles
+kubectl get storageclass
+
+# En Minikube, normalmente existe 'standard'
+kubectl describe storageclass standard
+
+# Verificar si hay PersistentVolumes existentes
+kubectl get pv
+```
+
+### Crear Namespace para el Laboratorio
+
+```bash
+# Crear un namespace específico para este laboratorio
+kubectl create namespace database-lab
+
+# Verificar el namespace
+kubectl get namespaces
+
+# Configurar kubectl para usar el namespace por defecto
+kubectl config set-context --current --namespace=database-lab
+```
+
+---
+
+## Parte 2: Crear PersistentVolumeClaim (PVC)
+
+### Entendiendo PersistentVolumeClaims
+
+Un PVC es una solicitud de almacenamiento por parte de un usuario. En Minikube, el provisionamiento es automático gracias al StorageClass 'standard'.
+
+**pvc-postgres.yaml:**
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: database-lab
+  labels:
+    app: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+```
+
+### Aplicar el PVC
+
+```bash
+# Aplicar el PVC
+kubectl apply -f pvc-postgres.yaml
+
+# Verificar el estado del PVC
+kubectl get pvc -n database-lab
+
+# Ver detalles del PVC
+kubectl describe pvc postgres-pvc -n database-lab
+
+# Ver el PersistentVolume creado automáticamente
+kubectl get pv
+```
+
+---
+
+## Parte 3: Crear ConfigMap para Configuración de PostgreSQL
+
+### Configuración de PostgreSQL
+
+**configmap-postgres.yaml:**
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: database-lab
+data:
+  POSTGRES_DB: "mydatabase"
+  POSTGRES_USER: "admin"
+  POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+  postgresql.conf: |
+    # PostgreSQL Configuration
+    listen_addresses = '*'
+    port = 5432
+    max_connections = 100
+    shared_buffers = 128MB
+    dynamic_shared_memory_type = posix
+    max_wal_size = 1GB
+    min_wal_size = 80MB
+    log_timezone = 'UTC'
+    datestyle = 'iso, mdy'
+    timezone = 'UTC'
+    lc_messages = 'en_US.utf8'
+    lc_monetary = 'en_US.utf8'
+    lc_numeric = 'en_US.utf8'
+    lc_time = 'en_US.utf8'
+    default_text_search_config = 'pg_catalog.english'
+```
+
+### Aplicar ConfigMap
+
+```bash
+# Aplicar ConfigMap
+kubectl apply -f configmap-postgres.yaml
+
+# Verificar ConfigMap
+kubectl get configmaps -n database-lab
+
+# Ver detalles
+kubectl describe configmap postgres-config -n database-lab
+```
+
+---
+
+## Parte 4: Crear Secret para Credenciales
+
+### Secret para Contraseña de PostgreSQL
+
+**secret-postgres.yaml:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: database-lab
+type: Opaque
+data:
+  # La contraseña en base64: echo -n "mysecretpassword" | base64
+  POSTGRES_PASSWORD: "bXlzZWNyZXRwYXNzd29yZA=="
+```
+
+### Aplicar Secret
+
+```bash
+# Aplicar Secret
+kubectl apply -f secret-postgres.yaml
+
+# Verificar Secret
+kubectl get secrets -n database-lab
+
+# Ver detalles (no muestra los valores)
+kubectl describe secret postgres-secret -n database-lab
+```
+
+---
+
+## Parte 5: Desplegar PostgreSQL con StatefulSet
+
+### ¿Por qué StatefulSet y no Deployment?
+
+Los StatefulSets son ideales para bases de datos porque:
+- Proveen identidad de red estable y predecible
+- Mantienen almacenamiento persistente vinculado a cada Pod
+- Garantizan ordenamiento y despliegue/actualización controlado
+
+**statefulset-postgres.yaml:**
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-statefulset
+  namespace: database-lab
+spec:
+  serviceName: "postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_INITDB_ARGS
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: POSTGRES_INITDB_ARGS
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+          subPath: postgres
+        - name: postgres-config
+          mountPath: /etc/postgresql
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - exec pg_isready -U admin -d mydatabase
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - exec pg_isready -U admin -d mydatabase
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: postgres-config
+        configMap:
+          name: postgres-config
+          items:
+          - key: postgresql.conf
+            path: postgresql.conf
+```
+
+### Aplicar StatefulSet
+
+```bash
+# Aplicar StatefulSet
+kubectl apply -f statefulset-postgres.yaml
+
+# Verificar StatefulSet
+kubectl get statefulsets -n database-lab
+
+# Ver los pods (notar el nombre ordenado)
+kubectl get pods -n database-lab -l app=postgres
+
+# Ver detalles del StatefulSet
+kubectl describe statefulset postgres-statefulset -n database-lab
+
+# Ver logs del pod de PostgreSQL
+kubectl logs -n database-lab -l app=postgres --tail=20
+```
+
+---
+
+## Parte 6: Crear Service para PostgreSQL
+
+### Service para Acceso a la Base de Datos
+
+**service-postgres.yaml:**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: database-lab
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+    name: postgres
+  selector:
+    app: postgres
+```
+
+### Aplicar Service
+
+```bash
+# Aplicar Service
+kubectl apply -f service-postgres.yaml
+
+# Verificar Service
+kubectl get services -n database-lab
+
+# Ver detalles del Service
+kubectl describe service postgres-service -n database-lab
+```
+
+**💡 Desafío 1:** ¿Qué diferencias observas en el nombre del pod creado por el StatefulSet comparado con los nombres de pods creados por Deployments?
+
+---
+
+## Parte 7: Probar la Base de Datos y Insertar Datos
+
+### Conectarse a PostgreSQL
+
+```bash
+# Obtener el nombre del pod de PostgreSQL
+POSTGRES_POD=$(kubectl get pods -n database-lab -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+echo $POSTGRES_POD
+
+# Conectarse a la base de datos usando el pod
+kubectl exec -it -n database-lab $POSTGRES_POD -- psql -U admin -d mydatabase
+```
+
+### Comandos SQL para Probar la Base de Datos
+
+```sql
+-- Crear una tabla de prueba
+CREATE TABLE IF NOT EXISTS employees (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    department VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insertar algunos datos de prueba
+INSERT INTO employees (name, email, department) VALUES 
+('Juan Pérez', 'juan.perez@empresa.com', 'Ventas'),
+('María García', 'maria.garcia@empresa.com', 'Marketing'),
+('Carlos López', 'carlos.lopez@empresa.com', 'TI'),
+('Ana Martínez', 'ana.martinez@empresa.com', 'RH');
+
+-- Verificar que los datos se insertaron correctamente
+SELECT * FROM employees;
+
+-- Contar el número de registros
+SELECT COUNT(*) as total_employees FROM employees;
+
+-- Salir de psql
+\q
+```
+
+### Script Automatizado para Insertar Datos
+
+**insert-test-data.sh:**
+```bash
+#!/bin/bash
+
+# Script para insertar datos de prueba en PostgreSQL
+
+echo "Insertando datos de prueba en PostgreSQL..."
+
+kubectl exec -n database-lab $POSTGRES_POD -- psql -U admin -d mydatabase << EOF
+-- Crear tabla si no existe
+CREATE TABLE IF NOT EXISTS test_data (
+    id SERIAL PRIMARY KEY,
+    test_value VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insertar datos de prueba
+INSERT INTO test_data (test_value) VALUES 
+('Dato de prueba 1 - ' || now()),
+('Dato de prueba 2 - ' || now()),
+('Dato de prueba 3 - ' || now());
+
+-- Verificar inserción
+SELECT 'Total registros en test_data: ' || COUNT(*) FROM test_data;
+EOF
+
+echo "Datos insertados correctamente."
+```
+
+```bash
+# Hacer el script ejecutable y ejecutarlo
+chmod +x insert-test-data.sh
+./insert-test-data.sh
+```
+
+---
+
+## Parte 8: Verificar Persistencia de Datos
+
+### Verificar Datos Antes de Eliminar el Pod
+
+```bash
+# Verificar los datos existentes
+kubectl exec -n database-lab $POSTGRES_POD -- psql -U admin -d mydatabase -c "SELECT * FROM employees;"
+kubectl exec -n database-lab $POSTGRES_POD -- psql -U admin -d mydatabase -c "SELECT * FROM test_data;"
+kubectl exec -n database-lab $POSTGRES_POD -- psql -U admin -d mydatabase -c "SELECT COUNT(*) as total_tables FROM information_schema.tables WHERE table_schema = 'public';"
+```
+
+### Eliminar el Pod y Verificar Recuperación
+
+```bash
+# Guardar el nombre del pod actual
+OLD_POD=$POSTGRES_POD
+echo "Pod actual: $OLD_POD"
+
+# Eliminar el pod forzosamente
+kubectl delete pod -n database-lab $OLD_POD
+
+# Verificar que Kubernetes recrea automáticamente el pod
+echo "Esperando que el nuevo pod esté listo..."
+kubectl wait --for=condition=ready pod -n database-lab -l app=postgres --timeout=120s
+
+# Obtener el nombre del nuevo pod
+NEW_POD=$(kubectl get pods -n database-lab -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+echo "Nuevo pod: $NEW_POD"
+
+# Esperar a que PostgreSQL esté completamente listo
+sleep 10
+
+# Verificar que el nuevo pod está usando el mismo PVC
+kubectl get pod -n database-lab $NEW_POD -o yaml | grep -A 5 -B 5 "claimName"
+```
+
+### Verificar que los Datos Persistieron
+
+```bash
+# Verificar que los datos siguen existiendo después de la recreación
+echo "=== Verificando persistencia de datos ==="
+
+echo "1. Tabla employees:"
+kubectl exec -n database-lab $NEW_POD -- psql -U admin -d mydatabase -c "SELECT * FROM employees;"
+
+echo "2. Tabla test_data:"
+kubectl exec -n database-lab $NEW_POD -- psql -U admin -d mydatabase -c "SELECT * FROM test_data;"
+
+echo "3. Conteo total de tablas:"
+kubectl exec -n database-lab $NEW_POD -- psql -U admin -d mydatabase -c "SELECT COUNT(*) as total_tables FROM information_schema.tables WHERE table_schema = 'public';"
+
+echo "4. Información del volumen:"
+kubectl exec -n database-lab $NEW_POD -- df -h /var/lib/postgresql/data
+```
+
+**💡 Desafío 2:** ¿Qué sucedería con los datos si hubiéramos usado un Deployment en lugar de un StatefulSet? ¿Por qué?
+
+---
+
+## Parte 9: Ejercicios Prácticos
+
+### Ejercicio 1: Escalar el StatefulSet
+
+```bash
+# Escalar a 2 réplicas (esto fallará porque necesitamos múltiples PVCs)
+kubectl scale statefulset postgres-statefulset -n database-lab --replicas=2
+
+# Ver el estado (la segunda réplica no podrá crear el PVC)
+kubectl get pods -n database-lab -l app=postgres
+
+# Volver a 1 réplica
+kubectl scale statefulset postgres-statefulset -n database-lab --replicas=1
+```
+
+### Ejercicio 2: Insertar Más Datos y Probar Persistencia
+
+```bash
+# Insertar datos adicionales
+kubectl exec -n database-lab $NEW_POD -- psql -U admin -d mydatabase -c "
+INSERT INTO employees (name, email, department) VALUES 
+('Laura Sánchez', 'laura.sanchez@empresa.com', 'Finanzas'),
+('Pedro Rodríguez', 'pedro.rodriguez@empresa.com', 'Operaciones');"
+
+# Verificar los nuevos datos
+kubectl exec -n database-lab $NEW_POD -- psql -U admin -d mydatabase -c "SELECT * FROM employees ORDER BY id;"
+```
+
+### Ejercicio 3: Verificar Configuración de Volúmenes
+
+```bash
+# Verificar el PVC actual
+kubectl get pvc -n database-lab
+
+# Ver detalles del PVC
+kubectl describe pvc postgres-pvc -n database-lab
+
+# Ver el PersistentVolume asociado
+kubectl get pv
+
+# Verificar la capacidad utilizada
+kubectl exec -n database-lab $NEW_POD -- du -sh /var/lib/postgresql/data/
+```
+
+---
+
+## Parte 10: Preguntas de Reflexión
+
+1. **¿Por qué es importante usar StatefulSet en lugar de Deployment para bases de datos?**
+
+2. **¿Qué sucedería si eliminamos el PVC después de tener datos?**
+
+3. **¿Cómo manejaría Kubernetes el almacenamiento si escalamos el StatefulSet a múltiples réplicas?**
+
+4. **¿Cuál es la diferencia entre accessModes ReadWriteOnce vs ReadWriteMany?**
+   - ReadWriteMany: Múltiples nodos pueden montar en modo lectura/escritura
+
+---
+
+## Parte 11: Limpieza
+
+```bash
+# Eliminar todos los recursos del namespace
+kubectl delete -f service-postgres.yaml
+kubectl delete -f statefulset-postgres.yaml
+kubectl delete -f secret-postgres.yaml
+kubectl delete -f configmap-postgres.yaml
+kubectl delete -f pvc-postgres.yaml
+
+# Verificar que todo está eliminado
+kubectl get all -n database-lab
+kubectl get pvc -n database-lab
+kubectl get pv
+
+# Eliminar el namespace (opcional)
+kubectl delete namespace database-lab
+
+# Restaurar el namespace por defecto
+kubectl config set-context --current --namespace=default
+```
+
+---
+
+## Resumen de Comandos Clave
+
+```bash
+# Comandos para gestionar StatefulSets
+kubectl get statefulsets
+kubectl describe statefulset <name>
+kubectl scale statefulset <name> --replicas=<number>
+
+# Comandos para PVCs
+kubectl get pvc
+kubectl describe pvc <name>
+kubectl delete pvc <name>
+
+# Comandos para verificar persistencia
+kubectl exec <pod> -- <command>
+kubectl logs <pod>
+```
+
+```{mermaid}
+graph TD
+    A[Inicio] --> B[Crear Namespace<br/>database-lab]
+    B --> C[Definir PersistentVolumeClaim]
+    C --> D[Aplicar PVC postgres-pvc]
+    D --> E[StorageClass aprovisiona PV]
+    
+    E --> F[Crear ConfigMap
+    postgres-config]
+    F --> G[ConfigMap contiene:<br/>POSTGRES_DB, POSTGRES_USER,<br/>postgresql.conf]
+    
+    E --> H[Crear Secret postgres-secret]
+    H --> I[Secret contiene:<br/>POSTGRES_PASSWORD codificado]
+    
+    G --> J[Crear StatefulSet]
+    I --> J
+    J --> K[StatefulSet define:<br/>- volumeClaimTemplates<br/>- volumeMounts<br/>- envFrom ConfigMap/Secret]
+    
+    K --> L[K8s crea Pod<br/>postgres-statefulset-0]
+    L --> M[Pod monta PVC en<br/>/var/lib/postgresql/data]
+    M --> N[PostgreSQL inicializa<br/>base de datos en volumen]
+    
+    N --> O[Crear Service postgres-service]
+    O --> P[Service configura:<br/>- ClusterIP<br/>- Puerto 5432<br/>- Selector app:postgres]
+    
+    P --> Q[Service expone<br/>postgres-statefulset-0:5432]
+    Q --> R[Endpoints automáticos<br/>creados por Service]
+    R --> S[Aplicaciones pueden conectar<br/>vía postgres-service:5432]
+    
+    %% Styling
+    classDef pvc fill:#e1f5fe
+    classDef config fill:#f3e5f5
+    classDef secret fill:#ffebee
+    classDef service fill:#e8f5e8
+    classDef statefulset fill:#fff3e0
+    
+    class C,D,E pvc
+    class F,G config
+    class H,I secret
+    class O,P,Q,R service
+    class J,K,L,M,N statefulset
+```
+
+**🎉 ¡Laboratorio Completado!** Has aprendido a desplegar y gestionar bases de datos con estado en Kubernetes usando StatefulSets y PersistentVolumeClaims, verificando la persistencia de datos mediante recreación controlada de Pods.
