@@ -6,7 +6,7 @@ author:
   - name: Francisco Palm
     orcid: 0000-0002-1293-0868
     email: fpalm@qu4nt.com
-    affiliations: qu4nt, activistasxsl
+    affiliations: qu4nt
 format:
   clean-revealjs
 html-math-method:
@@ -15,3 +15,720 @@ html-math-method:
 lang: es
 logo: images/qu4nt-logo.png
 ---
+
+# Orquestación Local con Docker Compose
+
+**Gestionando tráfico HTTP y diferentes cargas de trabajo**
+
+## El problema: Exponiendo múltiples servicios web
+
+**Escenario tradicional:**
+
+```bash
+# ¡Demasiados puertos!
+Service A: LoadBalancer → puerto 30000
+Service B: LoadBalancer → puerto 30001  
+Service C: LoadBalancer → puerto 30002
+```
+
+**Problemas:**
+
+- Puertos aleatorios difíciles de recordar
+- Múltiples direcciones IP/LB
+- No hay enrutamiento por dominio o path
+- Costoso en cloud (cada LB cuesta $)
+
+## El problema: Exponiendo múltiples servicios web 2
+
+Por ejemplo, imagina esto:
+
+- Tienes **5 aplicaciones web** en tu clúster.  
+- Cada una necesita estar accesible desde internet.  
+- Si usas `LoadBalancer`…  
+  → ¡5 IPs públicas!  
+  → ¡5 balanceadores de carga!  
+  → ¡5 facturas de la nube! 💸
+
+> 😩 **Y ni siquiera puedes usar el mismo dominio para todas**.
+
+
+## El problema: Exponiendo múltiples servicios web 3
+
+```{mermaid}
+graph TB
+    A[Usuario] --> B[app1.com:30000]
+    A --> C[app2.com:30001]
+    A --> D[app3.com:30002]
+    
+    B --> E[Service A]
+    C --> F[Service B]
+    D --> G[Service C]
+    
+    style B fill:#ffebee
+    style C fill:#ffebee
+    style D fill:#ffebee
+```
+
+**¿No sería mejor tener `miapp.com/api` y `miapp.com/web`?**
+
+## La solución: Ingress - El "router inteligente" de Kubernetes
+
+**¿Qué es Ingress?**
+
+- API object que gestiona acceso externo a servicios
+- Actúa como un "reverse proxy" en el cluster
+- Enruta tráfico basado en reglas (host/path)
+
+## La solución: Ingress 2
+
+**Ingress** es un objeto de Kubernetes que **gestiona el acceso externo a los servicios**, especialmente para **tráfico HTTP/HTTPS**.
+
+- Permite **enrutamiento por host** (`app1.miempresa.com`)  
+- Permite **enrutamiento por ruta** (`miempresa.com/app1`)  
+- Soporta **TLS/SSL** (HTTPS)  
+- Todo con **un solo IP pública**
+
+> **Piensa en Ingress como el “portero de un edificio de oficinas”**:  
+> Recibe a todos los visitantes y los dirige al piso correcto.
+
+## La solución: Ingress 3
+
+**Beneficios:**
+
+- Un único punto de entrada
+- Enrutamiento por nombre de dominio
+- Terminación SSL/TLS centralizada
+- Costo reducido (solo un LoadBalancer)
+
+```{mermaid}
+graph LR
+    A[🌐 Internet] --> B[Ingress]
+    B --> C["/api → Service A"]
+    B --> D["/web → Service B"]
+    B --> E["/admin → Service C"]
+    
+    style B fill:#c8e6c9
+```
+
+## ¿Por qué Ingress > LoadBalancer?
+
+| Característica       | Service `LoadBalancer` | Ingress |
+|----------------------|------------------------|------------------------|
+| **IP públicas**      | 1 por servicio         | **1 para todos** |
+| **Enrutamiento HTTP**| No                     | **Sí (por host/ruta)** |
+| **TLS**              | Manual (por servicio)  | **Centralizado** |
+| **Costo en la nube** | Alto                   | **Bajo** |
+| **Escalabilidad**    | Pobre                  | **Excelente** |
+
+> 💰 **Ejemplo real**:  
+> 10 apps → 10 LoadBalancers = $300/mes  
+> 10 apps → 1 Ingress = $30/mes
+
+---
+
+## Arquitectura Ingress: Dos componentes clave
+
+```{mermaid}
+graph TB
+    A[Usuario] --> B[LoadBalancer]
+    B --> C[Ingress Controller]
+    C --> D[Ingress Resource]
+    D --> E[Service A]
+    D --> F[Service B]
+    D --> G[Service C]
+    
+    style C fill:#e1f5fe
+    style D fill:#fff3e0
+```
+
+
+## Arquitectura Ingress: Dos componentes clave 2
+
+**1. Ingress Controller:** 
+
+- El "software" que hace el enrutamiento (Nginx, Traefik, HAProxy etc.)
+- Escucha en un puerto (80/443) y **evalúa las reglas de Ingress**
+- **No viene por defecto** → ¡debes instalarlo!
+
+**2. Ingress Resource:** 
+
+La "configuración" con las reglas de enrutamiento. Es un **objeto YAML** que defines indicándole al Controller **cómo enrutar el tráfico**
+
+
+## Arquitectura Ingress: Ejemplo
+
+```{mermaid}
+graph LR
+  Internet -->|HTTP/HTTPS| IngressController["Ingress Controller</br>(ej: NGINX Pod)"]
+  IngressController -->|/app1| Service1["Service: app-uno"]
+  IngressController -->|/app2| Service2["Service: app-dos"]
+  Service1 --> Pods1["Pods app-uno"]
+  Service2 --> Pods2["Pods app-dos"]
+```
+
+> 🔑 **Sin Controller, el recurso Ingress no hace nada** → ¡es solo una hoja de instrucciones!
+
+---
+
+
+## Ingress Controller: El cerebro del enrutamiento
+
+
+**¿Qué es?**
+
+- Pod(s) que ejecutan el proxy/reverse proxy
+- Monitorea los recursos Ingress en el cluster
+- Aplica las reglas de enrutamiento configuradas
+
+**Implementaciones populares:**
+
+- **Nginx Ingress Controller:** El más popular
+- **Traefik:** Moderno, con configuración automática
+- **HAProxy:** Alto rendimiento
+- **Istio:** Service mesh con capacidades Ingress
+
+
+## Ingress Controller: El cerebro del enrutamiento 2
+
+**Funcionamiento:**
+
+- Escucha en un puerto (80/443)
+- Aplica reglas de los recursos Ingress
+- Balancea carga entre Pods
+
+
+```{mermaid}
+graph LR
+    A[Controller] --> B[Monitor Ingress]
+    B --> C[Configurar Proxy]
+    C --> D[Enrutar Tráfico]
+    
+    style A fill:#f3e5f5
+```
+
+## Ingress Resource: Las reglas de enrutamiento
+
+**¿Qué es?**
+
+- Recurso YAML que define reglas de enrutamiento
+- Especifica qué servicio atiende cada ruta
+- Configura hosts virtuales y paths
+
+**Reglas comunes:**
+
+- **Host-based:** `api.midominio.com` → Service A
+- **Path-based:** `midominio.com/api` → Service A
+- **Mixed:** `midominio.com/api` y `midominio.com/web`
+
+**Ventaja:** Configuración declarativa como todo en K8s
+
+## Ingress Resource: Ejemplo
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  rules:
+  - host: miapp.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 80
+```
+
+
+---
+
+## Ejemplo completo: Ingress Resource
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: mi-dominio.com
+    http:
+      paths:
+      - path: /uno
+        pathType: Prefix
+        backend:
+          service:
+            name: app-uno-service
+            port:
+              number: 80
+      - path: /dos
+        pathType: Prefix
+        backend:
+          service:
+            name: app-dos-service
+            port:
+              number: 80
+```
+
+---
+
+## Comparación: Service vs Ingress
+
+```{mermaid}
+graph TB
+    A[Acceso Externo] --> B[Service LoadBalancer]
+    A --> C[Ingress]
+    
+    B --> D[1 Service = 1 LB]
+    D --> E[Coste alto]
+    D --> F[Puertos aleatorios]
+    
+    C --> G[1 Ingress = Múltiples servicios]
+    G --> H[Coste bajo]
+    G --> I[Enrutamiento inteligente]
+    
+    style B fill:#ffebee
+    style C fill:#c8e6c9
+```
+
+---
+
+## Flujo de tráfico con Ingress
+
+::: {.columns}
+
+::: {.column width="50%"}
+
+```{mermaid}
+graph TB
+    A[Usuario] --> B[dominio.com/uno]
+    B --> C[DNS → LoadBalancer IP]
+    C --> D[Ingress Controller]
+    
+    style D fill:#e1f5fe
+```
+:::
+
+::: {.column width="50%"}
+
+Cont.
+
+```{mermaid}
+graph TB
+    D[Ingress Controller] --> E[Consulta reglas Ingress]
+    E --> F[dominio.com/uno → app-uno-service]
+    F --> G[app-uno Pods]
+    
+    style D fill:#e1f5fe
+    style E fill:#fff3e0
+```
+:::
+
+:::
+
+## TLS/SSL con Ingress: HTTPS sin dolor
+
+### ¿Cómo cifrar el tráfico?
+
+1. Creas un **Secret** con tu certificado TLS
+2. Lo referencias en el Ingress
+
+```yaml
+spec:
+  tls:
+  - hosts:
+    - mi-dominio.com
+    secretName: mi-certificado-tls
+  rules:
+  - host: mi-dominio.com
+    http:
+      paths:
+      - path: /uno
+        ...
+```
+
+## TLS/SSL con Ingress: HTTPS sin dolor 2
+
+> 🔒 **El Ingress Controller maneja el descifrado** → 
+
+> tus apps siguen hablando **HTTP interno** (más simple y seguro dentro del clúster).
+
+## Más allá de los servicios web: Jobs y CronJobs
+
+**Problema:**
+
+¿Y las tareas que no son servicios continuos?
+
+**Ejemplos:**
+
+- Procesar archivos por lotes
+- Generar reportes nocturnos
+- Limpiar datos temporales
+- Backup de bases de datos
+
+## Más allá de los servicios web: Jobs y CronJobs 2
+
+**Deployment no sirve para esto:**
+
+- Deployment mantiene Pods siempre ejecutándose
+- Necesitamos Pods que se ejecuten y terminen
+
+
+```{mermaid}
+graph TB
+    A[Tareas batch] --> B[❌ Deployment]
+    A --> C[✅ Jobs]
+    
+    style B fill:#ffcdd2
+    style C fill:#c8e6c9
+```
+
+> 🧩 **Kubernetes tiene controladores para eso**: `Job` y `CronJob`.
+
+---
+
+## Jobs: Tareas que se ejecutan una vez
+
+**¿Qué es un Job?**
+
+- Crea uno o más Pods
+- Ejecuta una tarea hasta completarse exitosamente
+- Los Pods no se reinician al terminar
+
+**Casos de uso:**
+
+- Procesamiento de datos por lotes
+- Migración de base de datos
+- Ejecución de scripts de mantenimiento
+- Trabajos de cálculo intensivo
+
+## Jobs: Tareas que se ejecutan una vez 2
+
+**Características clave:**
+
+- `completions`: Cuántas veces ejecutar la tarea
+- `parallelism`: Cuántos Pods ejecutar simultáneamente
+- `backoffLimit`: Reintentos ante fallos
+
+
+```{mermaid}
+graph LR
+    A[Job Created] --> B[Pod Created]
+    B --> C[Task Running]
+    C --> D[Task Completed]
+    D --> E[Pod Terminated]
+    
+    style D fill:#c8e6c9
+```
+
+
+## Anatomía de un Job
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: procesar-archivos
+spec:
+  completions: 3
+  parallelism: 2
+  backoffLimit: 4
+  template:
+    spec:
+      containers:
+      - name: processor
+        image: my-processor:latest
+        command: ["python", "procesar.py"]
+      restartPolicy: Never
+```
+
+## Anatomía de un Job 2
+
+**Comportamiento:**
+
+- Ejecutará hasta 3 tareas exitosas
+- 2 Pods en paralelo máximo
+- Hasta 4 reintentos por tarea fallida
+
+---
+
+## CronJobs: Tareas programadas
+
+**¿Qué es un CronJob?**
+
+- Como un Job, pero ejecutado con una programación
+- Usa sintaxis cron estándar
+- Crea Jobs según la programación
+
+**Casos de uso:**
+
+- Backups nocturnos
+- Reportes diarios/semanales
+- Limpieza de datos temporales
+- Sincronización periódica
+
+## CronJobs: Tareas programadas 2
+
+**Ejemplo cron:**
+
+- `0 * * * *` = cada hora
+- `0 2 * * *` = cada día a las 2 AM
+- `*/5 * * * *` = cada 5 minutos
+
+
+```{mermaid}
+graph LR
+    A[CronJob] --> B[Schedule]
+    B --> C[Create Job]
+    C --> D[Job Runs]
+    D --> E[Cleanup]
+    
+    style B fill:#fff3e0
+```
+
+
+> ⏰ **Es el reemplazo moderno de `cron` en servidores**,  
+> pero con logs, monitoreo y gestión integrados en Kubernetes.
+
+## Ejemplo de CronJob
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-nightly
+spec:
+  schedule: "0 2 * * *"  # 2 AM daily
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: postgres:13
+            command:
+            - /bin/sh
+            - -c
+            - pg_dump -h $DB_HOST -U $DB_USER $DB_NAME > /backup/backup.sql
+          restartPolicy: OnFailure
+```
+
+## Ejemplo de CronJob 2
+
+**Características importantes:**
+
+- `startingDeadlineSeconds`: Tiempo máximo para iniciar
+- `concurrencyPolicy`: Permitir ejecuciones concurrentes
+- `successfulJobsHistoryLimit`: Cuántos jobs exitosos conservar
+
+---
+
+## Comparación: Deployment vs Job vs CronJob
+
+```{mermaid}
+graph LR
+    A[Tipo] --> B[Deployment]
+    A --> C[Job]
+    A --> D[CronJob]
+    
+    B --> E[Servicios largos]
+    C --> F[Tareas únicas]
+    D --> G[Tareas programadas]
+    
+    B --> H[Mantiene N Pods running]
+    C --> I[Ejecuta hasta completar]
+    D --> J[Crea Jobs según schedule]
+    
+    style B fill:#e1f5fe
+    style C fill:#fff3e0
+    style D fill:#f3e5f5
+```
+
+---
+
+## Flujo completo: Arquitectura con múltiples controladores
+
+```{mermaid}
+graph TB
+    A[Usuario Web] --> B[Ingress]
+    B --> C[Deployment - App Web]
+    
+    D[Schedule] --> E[CronJob]
+    E --> F[Job - Backup]
+    F --> G[Database StatefulSet]
+    
+    H[Admin] --> I[Job Manual - Migración]
+    
+    style B fill:#c8e6c9
+    style C fill:#e1f5fe
+    style E fill:#f3e5f5
+    style G fill:#fff3e0
+```
+
+## Patrones comunes de uso
+
+**Aplicación web típica:**
+
+```{mermaid}
+graph TB
+    A[Ingress] --> B[Deployment - Frontend]
+    A --> C[Deployment - Backend]
+    C --> D[StatefulSet - Database]
+    
+    E[CronJob] --> F[Job - Cleanup]
+    F --> D
+```
+
+## Patrones comunes de uso 2
+
+**Procesamiento de datos:**
+
+```{mermaid}
+graph TB
+    A[CronJob - Hourly] --> B[Job - Process Data]
+    C[CronJob - Daily] --> D[Job - Generate Reports]
+    
+    B --> E[Deployment - API]
+    D --> F[Storage]
+```
+
+
+
+---
+
+## Buenas prácticas con Ingress
+
+### 1. Usa nombres de host reales en desarrollo
+- Configura `/etc/hosts` para apuntar `mi-dominio.com` a la IP del Ingress
+- Así pruebas como en producción
+
+### 2. Agrupa reglas relacionadas en un solo Ingress
+- Más fácil de gestionar que 10 objetos Ingress separados
+
+### 3. Nunca expongas Services directamente con `LoadBalancer` si usas Ingress
+- Rompe el modelo de enrutamiento centralizado
+
+## Buenas prácticas con Ingress 2
+
+### 4. Usa `pathType: Prefix` (no `ImplementationSpecific`)
+- Es más portable entre Ingress Controllers
+
+> 🛡️ **Ingress es tu primera línea de defensa**:  
+> Valida, filtra y enruta antes de que el tráfico llegue a tus apps.
+
+---
+
+## ¿Qué NO hacer con Ingress?
+
+| ❌ Mal | ✅ Bien |
+|--------|--------|
+| Usar Ingress para tráfico TCP/UDP (ej: bases de datos) | Usar `Service: LoadBalancer` o `NodePort` |
+| Olvidar instalar el Ingress Controller | Verificar que el Controller esté corriendo antes de crear Ingress |
+| Poner lógica de negocio en las reglas de Ingress | Usar Ingress solo para enrutamiento, no para autenticación compleja |
+| Asumir que todos los Ingress Controllers soportan las mismas features | Consultar la documentación de tu Controller (NGINX ≠ Traefik) |
+
+> ⚠️ **Ingress es solo para HTTP/HTTPS** → no intentes forzar otros protocolos.
+
+---
+
+## Buenas prácticas con Jobs/CronJobs
+
+**Robustez:**
+
+- Configura `backoffLimit` apropiado
+- Usa `activeDeadlineSeconds` para timeout
+- Maneja graceful shutdown en los contenedores
+
+**Recursos:**
+
+- Requests/limits de CPU/memoria
+- Considera `ttlSecondsAfterFinished` para cleanup
+- Storage temporal si es necesario
+
+
+## Buenas prácticas con Jobs/CronJobs 2
+
+**Monitoreo:**
+
+- Alertas para Jobs fallidos
+- Logs centralizados de ejecuciones
+- Métricas de duración y éxito
+
+---
+
+## Resumen: Cuándo usar cada recurso
+
+\
+
+| Escenario | Recurso recomendado |
+|-----------|---------------------|
+| **Servicio web continuo** | Deployment + Service |
+| **Acceso HTTP inteligente** | Ingress |
+| **Base de datos/con estado** | StatefulSet |
+| **Tarea única** | Job |
+| **Tarea programada** | CronJob |
+
+---
+
+## Resumen visual: Tu clúster con Ingress
+
+```{mermaid}
+graph LR
+  Internet -->|mi-dominio.com/uno| IngressController
+  Internet -->|mi-dominio.com/dos| IngressController
+  IngressController --> AppUno["app-uno<br/>ClusterIP"]
+  IngressController --> AppDos["app-dos<br/>ClusterIP"]
+  CronJob["CronJob"] -->|programado| BackupJob["Job: backup"]
+  BackupJob --> DB["Base de Datos"]
+```
+
+- **Un solo punto de entrada** para múltiples apps  
+- **Enrutamiento inteligente** por URL  
+- **Tareas programadas** sin servidores adicionales
+
+---
+
+## Arquitectura completa de ejemplo
+
+```{mermaid}
+graph LR
+    A[🌐 Internet] --> B[Ingress]
+    
+    B --> C[Deployment - Frontend]
+    B --> D[Deployment - API]
+    B --> E[Deployment - Admin]
+    
+    D --> F[StatefulSet - PostgreSQL]
+    D --> G[Deployment - Redis]
+    
+    H[CronJob - Backup] --> I[Job - Backup DB]
+    I --> F
+    
+    J[CronJob - Cleanup] --> K[Job - Clean Cache]
+    K --> G
+    
+    style B fill:#c8e6c9
+    style F fill:#fff3e0
+    style I fill:#f3e5f5
+```
+
+---
+
+## ¡Dominando el tráfico y las tareas!
+
+**Hoy has aprendido:**
+
+- Ingress para enrutamiento HTTP inteligente
+- Jobs para tareas únicas y batch
+- CronJobs para tareas programadas
+- Cuándo usar cada tipo de controlador
+
+**Próximo:**
+
+Laboratorio práctico configurando Ingress para múltiples aplicaciones y automatizando tareas con CronJobs.

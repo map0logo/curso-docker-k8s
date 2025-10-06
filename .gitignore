@@ -210,3 +210,6 @@ __marimo__/
 # Quarto render files
 **_files/
 **.html
+
+# Ignorar imágenes en WSL
+*:Zone.Identifier

@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-dos
+  namespace: lab-ingress
+  labels:
+    app: app-dos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-dos
+  template:
+    metadata:
+      labels:
+        app: app-dos
+    spec:
+      containers:
+      - name: webapp
+        image: python:3.9-alpine
+        ports:
+        - containerPort: 8080
+        command: ["/bin/sh"]
+        args: 
+        - -c
+        - |
+          pip install flask
+          cat > app.py << 'EOF'
+          from flask import Flask
+          app = Flask(__name__)
+          
+          @app.route('/')
+          def hello():
+              return '<h1>Aplicación Dos</h1><p>Servicio secundario</p><p>Versión: 2.0</p>'
+          
+          @app.route('/status')
+          def status():
+              return '{"status": "healthy", "service": "app-dos"}'
+          
+          if __name__ == '__main__':
+              app.run(host='0.0.0.0', port=8080)
+          EOF
+          python app.py
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-dos-service
+  namespace: lab-ingress
+spec:
+  selector:
+    app: app-dos
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+

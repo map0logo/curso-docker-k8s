@@ -1,0 +1,886 @@
+---
+title: "Laboratorio: Despliegue de Múltiples Aplicaciones con un solo Punto de Entrada."
+date: last-modified
+author:
+  - name: Francisco Palm
+    orcid: 0000-0002-1293-0868
+    email: fpalm@qu4nt.com
+    affiliations: qu4nt
+format:
+  html:
+    toc: true
+html-math-method:
+  method: mathjax
+  url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+lang: es
+logo: images/qu4nt-logo.png
+lightbox: true
+
+---
+
+# Laboratorio: Despliegue de Múltiples Aplicaciones con un solo Punto de Entrada, Ingress y CronJobs en Kubernetes
+
+## Objetivos de Aprendizaje
+
+Al finalizar este laboratorio, los participantes podrán:
+
+- Comprender el concepto y ventajas de Ingress sobre Services LoadBalancer
+- Instalar y configurar un Ingress Controller (NGINX)
+- Desplegar múltiples aplicaciones con un único punto de entrada
+- Crear y gestionar CronJobs para tareas programadas
+- Solucionar problemas comunes en configuraciones de Ingress
+
+## Prerrequisitos
+
+- Cluster de Kubernetes (Minikube, Kind, o cluster en la nube)
+- `kubectl` configurado y funcionando
+- Conocimientos básicos de Pods, Deployments y Services
+
+## Parte 1: Configuración del Entorno
+
+### 1.1 Verificar el Cluster
+
+```bash
+# Verificar que el cluster está funcionando
+kubectl cluster-info
+
+# Verificar los nodos disponibles
+kubectl get nodes
+
+# Verificar namespaces existentes
+kubectl get namespaces
+```
+
+**Desafío 1**: ¿Qué comando usarías para ver información detallada de los nodos del cluster?
+
+### 1.2 Configurar Minikube (si es necesario)
+
+```bash
+# Habilitar el ingress controller en Minikube
+minikube addons enable ingress
+
+# Verificar que el ingress controller está corriendo
+kubectl get pods -n ingress-nginx
+```
+
+## Parte 2: Instalación del NGINX Ingress Controller
+
+### 2.1 Instalación usando Manifestos Oficiales
+
+```bash
+# Aplicar los manifiestos oficiales del NGINX Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/cloud/deploy.yaml
+```
+
+### 2.2 Verificar la Instalación
+
+```bash
+# Verificar que los pods del ingress controller están corriendo
+kubectl get pods -n ingress-nginx
+
+# Verificar el servicio del ingress controller
+kubectl get svc -n ingress-nginx
+
+# Verificar logs del ingress controller (opcional para troubleshooting)
+kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx --tail=50
+```
+
+**Ejercicio de Troubleshooting**: 
+Si los pods del ingress controller no están en estado `Running`, investiga los logs para identificar el problema.
+
+## Parte 3: Despliegue de Aplicaciones Web
+
+### 3.1 Crear Namespace para Nuestras Aplicaciones
+
+```yaml
+# namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-ingress
+  labels:
+    name: lab-ingress
+```
+
+```bash
+kubectl apply -f namespace.yaml
+```
+
+### 3.2 Aplicación Uno - Servicio Web Simple en Python
+
+**app-uno-deployment.yaml**:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-uno
+  namespace: lab-ingress
+  labels:
+    app: app-uno
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-uno
+  template:
+    metadata:
+      labels:
+        app: app-uno
+    spec:
+      containers:
+      - name: webapp
+        image: python:3.9-alpine
+        ports:
+        - containerPort: 8000
+        command: ["/bin/sh"]
+        args: 
+        - -c
+        - |
+          pip install flask
+          cat > app.py << 'EOF'
+          from flask import Flask
+          app = Flask(__name__)
+          
+          @app.route('/')
+          def hello():
+              return '<h1>Aplicación Uno</h1><p>Servicio principal</p>'
+          
+          @app.route('/health')
+          def health():
+              return 'OK'
+          
+          if __name__ == '__main__':
+              app.run(host='0.0.0.0', port=8000)
+          EOF
+          python app.py
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-uno-service
+  namespace: lab-ingress
+spec:
+  selector:
+    app: app-uno
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+```
+
+### 3.3 Aplicación Dos - Servicio Web Alternativo
+
+**app-dos-deployment.yaml**:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-dos
+  namespace: lab-ingress
+  labels:
+    app: app-dos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-dos
+  template:
+    metadata:
+      labels:
+        app: app-dos
+    spec:
+      containers:
+      - name: webapp
+        image: python:3.9-alpine
+        ports:
+        - containerPort: 8080
+        command: ["/bin/sh"]
+        args: 
+        - -c
+        - |
+          pip install flask
+          cat > app.py << 'EOF'
+          from flask import Flask
+          app = Flask(__name__)
+          
+          @app.route('/')
+          def hello():
+              return '<h1>Aplicación Dos</h1><p>Servicio secundario</p><p>Versión: 2.0</p>'
+          
+          @app.route('/status')
+          def status():
+              return '{"status": "healthy", "service": "app-dos"}'
+          
+          if __name__ == '__main__':
+              app.run(host='0.0.0.0', port=8080)
+          EOF
+          python app.py
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-dos-service
+  namespace: lab-ingress
+spec:
+  selector:
+    app: app-dos
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+```
+
+### 3.4 Desplegar las Aplicaciones
+
+```bash
+# Aplicar los manifiestos
+kubectl apply -f app-uno-deployment.yaml
+kubectl apply -f app-dos-deployment.yaml
+
+# Verificar el despliegue
+kubectl get deployments -n lab-ingress
+kubectl get pods -n lab-ingress
+kubectl get services -n lab-ingress
+```
+
+**Desafío 2**: ¿Cómo verificarías que los servicios pueden comunicarse entre sí dentro del cluster?
+
+## Parte 4: Configuración del Recurso Ingress
+
+### 4.1 Crear el Recurso Ingress
+
+**ingress-config.yaml**:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
+  namespace: lab-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: mi-dominio.com
+    http:
+      paths:
+      - path: /uno
+        pathType: Prefix
+        backend:
+          service:
+            name: app-uno-service
+            port:
+              number: 80
+      - path: /dos
+        pathType: Prefix
+        backend:
+          service:
+            name: app-dos-service
+            port:
+              number: 80
+```
+
+### 4.2 Aplicar y Verificar la Configuración Ingress
+
+```bash
+# Aplicar el recurso Ingress
+kubectl apply -f ingress-config.yaml
+
+# Verificar el estado del Ingress
+kubectl get ingress -n lab-ingress
+
+# Verificar detalles del Ingress
+kubectl describe ingress main-ingress -n lab-ingress
+```
+
+### 4.3 Probar la Configuración
+
+```bash
+# Obtener la IP del Ingress Controller
+kubectl get svc -n ingress-nginx
+
+# En Minikube, obtener la IP
+minikube ip
+
+# Probar el acceso (reemplaza IP con la real)
+curl http://<INGRESS_IP>/uno
+curl http://<INGRESS_IP>/dos
+```
+
+**Ejercicio de Troubleshooting**:
+Si recibes un error 404, verifica:
+
+1. Las anotaciones del Ingress
+2. Que los servicios estén correctamente configurados
+3. Los logs del ingress controller
+
+## Parte 5: Configuración de CronJob (Opcional)
+
+### 5.1 Crear un CronJob Básico
+
+**cronjob-hola-mundo.yaml**:
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hola-mundo-cron
+  namespace: lab-ingress
+spec:
+  schedule: "*/1 * * * *"  # Ejecutar cada minuto
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hola-mundo
+            image: python:3.9-alpine
+            command:
+            - /bin/sh
+            - -c
+            - 'echo "Hola Mundo - $(date)" && sleep 30'
+          restartPolicy: OnFailure
+```
+
+### 5.2 Desplegar y Verificar el CronJob
+
+```bash
+# Aplicar el CronJob
+kubectl apply -f cronjob-hola-mundo.yaml
+
+# Verificar el CronJob
+kubectl get cronjobs -n lab-ingress
+
+# Verificar los Jobs creados
+kubectl get jobs -n lab-ingress
+
+# Verificar logs de un Job específico
+kubectl logs -n lab-ingress job/<JOB_NAME>
+
+
+# Verificar los Jobs creados en tiempo
+kubectl get jobs -n lab-ingress -w
+```
+
+## Parte 6: Ejercicios Prácticos y Desafíos
+
+### Ejercicio 6.1: Troubleshooting de Configuración
+
+**Problema Simulado**: El Ingress no está enrutando correctamente el tráfico.
+
+```yaml
+# ingress-problema.yaml (NO APLICAR - solo para análisis)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-problema
+  namespace: lab-ingress
+spec:
+  rules:
+  - host: mi-dominio.com
+    http:
+      paths:
+      - path: /uno
+        pathType: Prefix
+        backend:
+          service:
+            name: app-uno-service-inexistente  # Error aquí
+            port:
+              number: 80
+```
+
+**Preguntas**:
+
+1. ¿Qué error identificarías al describir este Ingress?
+2. ¿Cómo solucionarías este problema?
+
+### Ejercicio 6.2: Modificación de Ruteo
+
+**Instrucciones**: Modifica el Ingress existente para:
+- Agregar un path `/saludo` que apunte a app-uno
+- Cambiar el path `/dos` por `/servicio-dos`
+
+**Solución Guiada**:
+```bash
+# Editar el ingress existente
+kubectl edit ingress main-ingress -n lab-ingress
+
+# O alternativamente, modificar el archivo YAML y reaplicar
+```
+
+### Ejercicio 6.3: Health Checks Personalizados
+
+**Desafío**: Modifica las aplicaciones para incluir endpoints de health check y configura el Ingress para usarlos.
+
+## Parte 7: Script de Validación Automatizada
+
+### 7.1 Script de Verificación
+
+**validate-lab.sh**:
+```bash
+#!/bin/bash
+
+echo "=== Validación del Laboratorio Ingress ==="
+
+# Verificar namespaces
+echo "1. Verificando namespaces..."
+kubectl get namespace lab-ingress > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✓ Namespace lab-ingress existe"
+else
+    echo "✗ Namespace lab-ingress no existe"
+fi
+
+# Verificar deployments
+echo "2. Verificando deployments..."
+DEPLOYMENTS=$(kubectl get deployments -n lab-ingress -o jsonpath='{.items[*].metadata.name}')
+if [[ $DEPLOYMENTS == *"app-uno"* ]]; then
+    echo "✓ Deployment app-uno existe"
+else
+    echo "✗ Deployment app-uno no existe"
+fi
+
+if [[ $DEPLOYMENTS == *"app-dos"* ]]; then
+    echo "✓ Deployment app-dos existe"
+else
+    echo "✗ Deployment app-dos no existe"
+fi
+
+# Verificar servicios
+echo "3. Verificando servicios..."
+SERVICES=$(kubectl get services -n lab-ingress -o jsonpath='{.items[*].metadata.name}')
+if [[ $SERVICES == *"app-uno-service"* ]]; then
+    echo "✓ Service app-uno-service existe"
+else
+    echo "✗ Service app-uno-service no existe"
+fi
+
+if [[ $SERVICES == *"app-dos-service"* ]]; then
+    echo "✓ Service app-dos-service existe"
+else
+    echo "✗ Service app-dos-service no existe"
+fi
+
+# Verificar ingress
+echo "4. Verificando ingress..."
+kubectl get ingress main-ingress -n lab-ingress > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo "✓ Ingress main-ingress existe"
+    
+    # Verificar reglas del ingress
+    RULES=$(kubectl get ingress main-ingress -n lab-ingress -o jsonpath='{.spec.rules[0].http.paths[*].path}')
+    if [[ $RULES == *"/uno"* ]] && [[ $RULES == *"/dos"* ]]; then
+        echo "✓ Reglas de path configuradas correctamente"
+    else
+        echo "✗ Reglas de path incorrectas"
+    fi
+else
+    echo "✗ Ingress main-ingress no existe"
+fi
+
+echo "=== Validación completada ==="
+```
+
+## Parte 8: Preguntas de Reflexión y Autoevaluación
+
+### Preguntas Teóricas
+
+1. **¿Cuál es la principal ventaja de usar Ingress sobre múltiples Services de tipo LoadBalancer?**
+   
+2. **Explica la diferencia entre un Ingress Controller y un recurso Ingress:**
+   
+3. **¿Por qué es importante el `ingressClassName` en la configuración del Ingress?**
+   
+4. **¿Qué problema resuelven los CronJobs en comparación con los Deployments regulares?**
+
+### Preguntas Prácticas
+
+5. **Si necesitaras agregar una tercera aplicación, ¿qué pasos seguirías?**
+   
+6. **¿Cómo solucionarías un error 502 Bad Gateway al acceder a través del Ingress?**
+   
+7. **¿Qué consideraciones de seguridad deberías tener al exponer múltiples aplicaciones mediante un único Ingress?**
+
+### Checklist de Autoevaluación
+
+- [ ] Comprendo la diferencia entre Ingress y LoadBalancer
+- [ ] Puedo instalar y configurar un Ingress Controller
+- [ ] Sé crear recursos Ingress para enrutamiento basado en path
+- [ ] Puedo desplegar múltiples aplicaciones con un único punto de entrada
+- [ ] Entiendo cómo crear y gestionar CronJobs
+- [ ] Puedo solucionar problemas comunes de configuración de Ingress
+
+## Soluciones a Desafíos
+
+### Solución Desafío 1
+```bash
+kubectl describe nodes
+```
+
+### Solución Desafío 2
+```bash
+# Ejecutar un pod temporal para testing
+kubectl run -it --rm test-pod --image=busybox -n lab-ingress -- /bin/sh
+
+# Desde dentro del pod, probar conectividad
+wget -qO- http://app-uno-service:80
+wget -qO- http://app-dos-service:80
+```
+
+## Limpieza
+
+```bash
+# Eliminar todos los recursos creados
+kubectl delete -f app-uno-deployment.yaml
+kubectl delete -f app-dos-deployment.yaml
+kubectl delete -f ingress-config.yaml
+kubectl delete -f cronjob-hola-mundo.yaml 2>/dev/null || true
+kubectl delete namespace lab-ingress
+
+# Opcional: Deshabilitar ingress en Minikube
+# minikube addons disable ingress
+```
+
+## Diagrama 1: Arquitectura General del Laboratorio
+
+```{mermaid}
+graph TB
+
+    subgraph Cluster Kubernetes
+        subgraph Namespace: ingress-nginx
+            IC[Ingress Controller<br>nginx]
+        end
+        
+        subgraph Namespace: lab-ingress
+            subgraph Ingress Resource
+                IG[Ingress<br/>main-ingress]
+            end
+            
+            subgraph Aplicación 1
+                AU1[Pod: app-uno-xx1]
+                AU2[Pod: app-uno-xx2]
+                AUS[Service: app-uno-service]
+            end
+            
+            subgraph Aplicación 2
+                AD1[Pod: app-dos-xx1]
+                AD2[Pod: app-dos-xx2]
+                ADS[Service: app-dos-service]
+            end
+            
+            subgraph CronJob
+                CJ[CronJob<br>hola-mundo-cron]
+                JOB[Job<br>hola-mundo-xxxxx]
+                POD[Pod<br>hola-mundo-xxxx]
+            end
+        end
+    end
+    
+    User[Usuario] -->|1. curl http://IP/uno| IC
+    User -->|2. curl http://IP/dos| IC
+    IG -->|/uno| AUS
+    IG -->|/dos| ADS
+    AUS --> AU1
+    AUS --> AU2
+    ADS --> AD1
+    ADS --> AD2
+    CJ --> JOB
+    JOB --> POD
+    
+    classDef ingress fill:#e1f5fe
+    classDef service fill:#f3e5f5
+    classDef pod fill:#e8f5e8
+    classDef cron fill:#fff3e0
+    
+    class IG,IC ingress
+    class AUS,ADS service
+    class AU1,AU2,AD1,AD2,POD pod
+    class CJ,JOB cron
+```
+
+## Diagrama 2: Flujo de Tráfico HTTP
+
+```{mermaid}
+sequenceDiagram
+    participant U as Usuario
+    participant IC as Ingress Controller<br>nginx
+    participant IG as Ingress Resource
+    participant S1 as Service<br>app-uno-service
+    participant S2 as Service<br>app-dos-service
+    participant P1 as Pod app-uno
+    participant P2 as Pod app-dos
+    
+    U->>IC: HTTP Request http://IP/uno
+    IC->>IG: Consulta reglas de routing
+    IG-->>IC: /uno → app-uno-service:80
+    IC->>S1: Forward request
+    S1->>P1: Load balancing
+    P1-->>S1: Response HTML
+    S1-->>IC: Forward response
+    IC-->>U: 200 OK<br><h1>Aplicación Uno</h1>
+    
+    Note over U,IC: --- Segundo Request ---
+    
+    U->>IC: HTTP Request http://IP/dos
+    IC->>IG: Consulta reglas de routing
+    IG-->>IC: /dos → app-dos-service:80
+    IC->>S2: Forward request
+    S2->>P2: Load balancing
+    P2-->>S2: Response HTML
+    S2-->>IC: Forward response
+    IC-->>U: 200 OK<br><h1>Aplicación Dos</h1>
+```
+
+## Diagrama 3: Configuración del Ingress Resource
+
+```{mermaid}
+graph LR
+    subgraph Ingress Rules
+        direction TB
+        R1[Rule 1: http]
+        P1[Path: /uno] --> S1[Service: app-uno-service:80]
+        P2[Path: /dos] --> S2[Service: app-dos-service:80]
+    end
+    
+    subgraph Annotations
+        A1[nginx.ingress.kubernetes.io/rewrite-target: /]
+        A2[nginx.ingress.kubernetes.io/ssl-redirect: false]
+    end
+    
+    subgraph Spec
+        C1[ingressClassName: nginx]
+    end
+    
+    R1 --> P1
+    R1 --> P2
+```
+
+## Diagrama 4: Troubleshooting - Flujo de Diagnóstico
+
+```{mermaid}
+flowchart TD
+    Start[Error: Cannot connect to Ingress] --> Step1
+    
+    subgraph Step1 [Verificar Ingress Controller]
+        S1A[Verificar pods ingress-nginx] --> S1B{¿Pods Running?}
+        S1B -- Sí --> Step2
+        S1B -- No --> S1C[Revisar logs<br>kubectl logs -n ingress-nginx]
+        S1C --> S1D[Reinstalar ingress controller]
+    end
+    
+    subgraph Step2 [Verificar Servicio]
+        S2A[kubectl get svc -n ingress-nginx] --> S2B{¿EXTERNAL-IP pending?}
+        S2B -- Sí --> S2C[Usar minikube tunnel<br>o NodePort directo]
+        S2B -- No --> Step3
+        S2C --> Step3
+    end
+    
+    subgraph Step3 [Verificar Aplicaciones]
+        S3A[Verificar pods aplicaciones] --> S3B{¿Pods Ready?}
+        S3B -- Sí --> Step4
+        S3B -- No --> S3C[Revisar logs aplicación<br>kubectl logs pod/xxx]
+    end
+    
+    subgraph Step4 [Verificar Configuración Ingress]
+        S4A[kubectl describe ingress] --> S4B{¿Paths correctos?}
+        S4B -- Sí --> S4C[Probar acceso interno]
+        S4B -- No --> S4D[Corregir configuración<br>quitar host o ajustar paths]
+        S4C --> S4E{¿Funciona internamente?}
+        S4E -- Sí --> S4F[Problema en Ingress]
+        S4E -- No --> S4G[Problema en aplicación]
+    end
+    
+    Step1 --> Step2
+    Step2 --> Step3
+    Step3 --> Step4
+    
+    Step4 --> Final[Problema Identificado y Resuelto]
+```
+
+## Diagrama 6: Comparación LoadBalancer vs Ingress
+
+```{mermaid}
+graph TD
+    subgraph Approach1 [Múltiples LoadBalancers]
+        LB1[LoadBalancer 1<br>IP Externa 1] --> S1[Service App 1]
+        LB2[LoadBalancer 2<br>IP Externa 2] --> S2[Service App 2]
+        LB3[LoadBalancer 3<br>IP Externa 3] --> S3[Service App 3]
+        Costo[Costo alto:<br>Múltiples IPs externas]
+    end
+    
+    subgraph Approach2 [Un solo Ingress]
+        IC[Ingress Controller<br>Una IP Externa] --> IG[Ingress Resource]
+        IG --> S4[Service App 1<br>Path: /app1]
+        IG --> S5[Service App 2<br>Path: /app2]
+        IG --> S6[Service App 3<br>Path: /app3]
+        Economía[Costo reducido:<br>Una IP externa]
+    end
+    
+    User1[Usuario] --> LB1
+    User2[Usuario] --> LB2
+    User3[Usuario] --> LB3
+    
+    User4[Usuario] --> IC
+    User5[Usuario] --> IC
+    User6[Usuario] --> IC
+```
+
+## Diagrama 7: Estructura de Archivos del Laboratorio
+
+```{mermaid}
+graph TD
+    Root[Laboratorio Ingress] --> K8s
+    Root --> Scripts
+    
+    subgraph K8s [Manifiestos Kubernetes]
+        NS[namespace.yaml]
+        AU[app-uno-deployment.yaml]
+        AD[app-dos-deployment.yaml]
+        IG[ingress-config.yaml]
+        CJ[cronjob-hola-mundo.yaml]
+    end
+    
+    subgraph Scripts [Scripts de Utilidad]
+        V1[validate-lab.sh]
+        V2[comprehensive-connectivity-check.sh]
+        D1[diagnostico-completo.sh]
+    end
+    
+    subgraph Comandos [Comandos Clave]
+        C1[kubectl apply -f]
+        C2[kubectl get ingress]
+        C3[minikube tunnel]
+        C4[curl testing]
+    end
+    
+    NS --> AU
+    NS --> AD
+    AU & AD --> IG
+    IG --> CJ
+```
+
+## Diagrama 8: Resolución de Nombres DNS Internos
+
+```{mermaid}
+graph LR
+    Client[Pod Cliente] --> DNS[CoreDNS Service]
+    DNS --> Record1[app-uno-service.lab-ingress.svc.cluster.local]
+    DNS --> Record2[app-dos-service.lab-ingress.svc.cluster.local]
+    
+    Record1 --> IP1[ClusterIP: 10.96.xxx.xxx]
+    Record2 --> IP2[ClusterIP: 10.96.yyy.yyy]
+    
+    IP1 --> Endpoints1[Pod IPs: 10.244.x.x, 10.244.x.y]
+    IP2 --> Endpoints2[Pod IPs: 10.244.y.x, 10.244.y.y]
+    
+    classDef dns fill:#e8f5e8
+    classDef service fill:#f3e5f5
+    classDef pod fill:#fff3e0
+    
+    class DNS dns
+    class Record1,Record2,IP1,IP2 service
+    class Endpoints1,Endpoints2 pod
+```
+
+## Diagrama 9: Flujo de Configuración Paso a Paso
+
+```{mermaid}
+flowchart TD
+    Start[Inicio Laboratorio] --> Step1
+    
+    subgraph Phase1 [Fase 1: Setup Inicial]
+        Step1[Verificar cluster Kubernetes] --> 
+        Step2[Habilitar ingress en Minikube] --> 
+        Step3[Instalar NGINX Ingress Controller]
+    end
+    
+    subgraph Phase2 [Fase 2: Desplegar Aplicaciones]
+        Step4[Crear namespace lab-ingress] --> 
+        Step5[Desplegar app-uno Deployment/Service] --> 
+        Step6[Desplegar app-dos Deployment/Service]
+    end
+    
+    subgraph Phase3 [Fase 3: Configurar Ingress]
+        Step7[Crear recurso Ingress] --> 
+        Step8[Configurar reglas de routing] --> 
+        Step9[Verificar configuración]
+    end
+    
+    subgraph Phase4 [Fase 4: Testing y Validación]
+        Step10[Probar con minikube tunnel] --> 
+        Step11[Validar conectividad] --> 
+        Step12[Solucionar problemas]
+    end
+    
+    subgraph Phase5 [Fase 5: CronJob Opcional]
+        Step13[Crear CronJob] --> 
+        Step14[Verificar ejecución] --> 
+        Step15[Revisar logs]
+    end
+    
+    Phase1 --> Phase2
+    Phase2 --> Phase3
+    Phase3 --> Phase4
+    Phase4 --> Phase5
+    Phase5 --> End[Laboratorio Completado]
+```
+
+## Diagrama 10: Jerarquía de Recursos Kubernetes
+
+```{mermaid}
+graph TD
+    subgraph Cluster Level
+        NC[Namespace: lab-ingress]
+    end
+    
+    subgraph Workloads
+        AU[Deployment: app-uno]
+        AD[Deployment: app-dos]
+        CJ[CronJob: hola-mundo-cron]
+    end
+    
+    subgraph Networking
+        AUS[Service: app-uno-service]
+        ADS[Service: app-dos-service]
+        IG[Ingress: main-ingress]
+    end
+    
+    subgraph Pods
+        P1[Pod: app-uno-xxxx]
+        P2[Pod: app-dos-xxxx]
+        P3[Pod: hola-mundo-xxxx]
+    end
+    
+    NC --> AU
+    NC --> AD
+    NC --> CJ
+    NC --> AUS
+    NC --> ADS
+    NC --> IG
+    
+    AU --> P1
+    AD --> P2
+    CJ --> P3
+    
+    AUS --> P1
+    ADS --> P2
+    IG --> AUS
+    IG --> ADS
+    
+    classDef namespace fill:#bbdefb
+    classDef workload fill:#c8e6c9
+    classDef network fill:#ffecb3
+    classDef pod fill:#f8bbd0
+    
+    class NC namespace
+    class AU,AD,CJ workload
+    class AUS,ADS,IG network
+    class P1,P2,P3 pod
+```
+
+## Recursos Adicionales
+
+- [Documentación Oficial Kubernetes Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
+- [NGINX Ingress Controller Documentation](https://kubernetes.github.io/ingress-nginx/)
+- [Kubernetes CronJobs Documentation](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/)
+

@@ -50,7 +50,7 @@ grep -E --color 'vmx|svm' /proc/cpuinfo
 
 **Windows (PowerShell como Administrador):**
 ```powershell
-systeminfo | Select-String "Virtualización"
+systeminfo | Select-String "Hyper-V|VMX|SVM"
 ```
 
 **macOS:**
@@ -59,6 +59,8 @@ sysctl -a | grep machdep.cpu.features
 ```
 
 ### Instalación de VirtualBox (Linux/Windows)
+
+Esto es opcional en caso de no tener instalado Docker, y docker no es una opción viable en tu maquina.
 
 1. Descargar VirtualBox desde [virtualbox.org](https://www.virtualbox.org/wiki/Downloads)
 2. Instalar siguiendo el asistente del instalador
@@ -87,15 +89,12 @@ sudo install minikube-darwin-arm64 /usr/local/bin/minikube
 
 **Windows:**
 
-- Descargar `minikube-installer.exe` desde GitHub Releases
+- Descargar [`minikube-installer.exe`](https://storage.googleapis.com/minikube/releases/latest/minikube-installer.exe) desde GitHub Releases
 - Ejecutar el instalador (se agregará automáticamente al PATH)
 
 ### Iniciar el Clúster Minikube
 
 ```bash
-# Para VirtualBox (Linux/Windows/Intel Mac)
-minikube start --driver=virtualbox
-
 # Para Docker (macOS ARM)
 minikube start --driver=docker
 ```
@@ -115,7 +114,7 @@ minikube version
 
 ### Instalación de kubectl
 
-Minikube incluye una versión integrada de kubectl, pero podemos instalarlo por separado:
+Minikube incluye una versión integrada de kubectl, pero es recomendable instalarlo por separado ya que la versión de minikube es limitada:
 
 **Linux:**
 ```bash
@@ -140,7 +139,7 @@ La versión más reciente la puedes encontrar en https://dl.k8s.io/release/stabl
 https://dl.k8s.io/v1.34.1/bin/windows/amd64/kubectl.exe
 
 **Verificar la configuración:**
-```powershell
+```bash
 kubectl version --client
 kubectl cluster-info
 kubectl get nodes
@@ -221,6 +220,7 @@ CMD ["python", "app.py"]
 ```
 
 ### requirements.txt
+
 ```
 Flask==2.3.3
 redis==4.6.0
@@ -295,6 +295,14 @@ kubectl get services
 
 **🚀 Desafío 2:** ¿Por qué el servicio no tiene una IP externa inmediatamente? ¿Cómo podemos acceder a nuestra aplicación?
 
+Prueba si puedes acceder a la aplicación desde tu navegador.
+
+¿Dónde debería estar?
+
+```bash
+minikube service python-counter-service
+```
+
 ---
 
 ## Parte 4: Escalando el Deployment
@@ -351,7 +359,7 @@ kubectl get pods -w
 # Ver eventos del cluster
 kubectl get events --sort-by='.lastTimestamp'
 
-# Verificar que todas las réplicas estén running
+# Verificar que todas las réplicas estén ejecutándose
 kubectl get pods -l app=python-counter
 ```
 
@@ -369,7 +377,22 @@ for i in {1..10}; do
 done
 ```
 
-**💡 Desafío 3:** ¿Cómo se mantiene el contador de visitas si los pods se reinician? ¿Qué problema identificas y cómo lo resolverías?
+Si el mensaje
+
+```bash
+❗  Because you are using a Docker driver on linux, the terminal needs to be open to run it.
+```
+
+Guarda manualmente el valor de `SERVICE_URL`
+
+```bash
+SERVICE_URL=http://127.0.0.1:35091 # Cambia esto con el resultado de la primera solicitud
+
+for i in {1..10}; do
+    curl -s $SERVICE_URL | grep "Visita número"
+    sleep 1
+done
+```
 
 ---
 
@@ -455,6 +478,8 @@ kubectl get pods
 kubectl logs -l app=python-counter | grep "Redis"
 ```
 
+**💡 Desafío 3:** ¿Cómo se mantiene el contador de visitas si los pods se reinician? ¿Qué problema identificas y cómo lo resolverías?
+
 ---
 
 ## Parte 7: Perfiles Avanzados de Minikube
@@ -463,7 +488,7 @@ kubectl logs -l app=python-counter | grep "Redis"
 
 ```bash
 # Crear cluster con perfil personalizado
-minikube start --driver=virtualbox --nodes=2 --cpus=2 --memory=4g --disk-size=20g --profile=mi-cluster
+minikube start --driver=docker --nodes=2 --cpus=2 --memory=4g --disk-size=20g --profile=mi-cluster
 
 # Listar perfiles
 minikube profile list
@@ -501,7 +526,7 @@ kubectl get pods -o wide
 
 ### Validación de Conocimientos
 
-**Ejercicio 1:** Crea un nuevo deployment con una aplicación simple que muestre "Hola Mundo" y escálelo a 5 réplicas.
+**Ejercicio 1:** Crea un nuevo deployment con una aplicación simple que muestre "Hola Mundo" y hazlo escalar a 5 réplicas.
 
 **Ejercicio 2:** Simula un fallo del nodo principal y observa cómo Kubernetes responde.
 

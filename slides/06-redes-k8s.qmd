@@ -22,22 +22,22 @@ logo: images/qu4nt-logo.png
 
 ## De Docker a Kubernetes: El siguiente nivel
 
-::: {.columns}
-::: {.column width="50%"}
 **¿Recuerdas Docker Compose?**
+
 - Perfecto para single-host
 - Desarrollo y testing
 - Limitado para producción
 
 **Problemas en escala:**
+
 - ¿Y si un host falla?
 - ¿Cómo escalo automáticamente?
 - ¿Cómo gestiono updates sin downtime?
 - ¿Y el load balancing?
-:::
 
-::: {.column width="50%"}
-```mermaid
+## De Docker a Kubernetes: El siguiente nivel 2
+
+```{mermaid}
 graph TB
     A[Host Único] --> B[Single Point of Failure]
     C[Escala Manual] --> D[Ineficiente]
@@ -47,18 +47,19 @@ graph TB
     style D fill:#ffebee
     style F fill:#ffebee
 ```
-:::
-:::
+
 
 **Kubernetes: La orquestación de contenedores a escala enterprise**
 
 > En esta sesión aprenderemos a **exponer aplicaciones** del clúster y **gestionar su configuración** de forma segura y desacoplada.
 
+## De Docker a Kubernetes: El siguiente nivel 3
+
 Imagina esto:
 
 - Tu app está corriendo feliz en Kubernetes…  
 - Pero **nadie puede acceder a ella** desde fuera.  
-- Y además, **sus credenciales están quemadas en el código** 🔥.
+- Y además, **sus credenciales están hardcodeadas** 🔥.
 
 > 😱 ¡Dos grandes no-nos en producción!
 
@@ -70,25 +71,26 @@ Hoy resolveremos ambos problemas:
 
 ## ¿Qué es Kubernetes realmente?
 
-::: {.columns}
-::: {.column width="60%"}
 **Definición formal:**
+
 - Sistema open-source para automatizar el despliegue, escalado y gestión de aplicaciones en contenedores
 
 **En términos simples:**
+
 - Como un "sistema operativo para clusters"
 - Gestiona dónde se ejecutan tus contenedores
 - Se asegura de que siempre estén corriendo
 - Escala automáticamente según la demanda
 
+## ¿Qué es Kubernetes realmente? 2
+
 **Analogía:**
+
 - Kubernetes es el director de orquesta
 - Los nodos son los músicos
 - Los pods son las partituras individuales
-:::
 
-::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[Kubernetes Master] --> B[Node 1]
     A --> C[Node 2]
@@ -100,14 +102,12 @@ graph TB
     
     style A fill:#ffccbc
 ```
-:::
-:::
 
 ---
 
 ## Arquitectura de Kubernetes: Visión general
 
-```mermaid
+```{mermaid}
 graph TB
     A[Control Plane] --> B[API Server]
     A --> C[etcd]
@@ -129,15 +129,15 @@ graph TB
 
 ## Conceptos fundamentales de Kubernetes
 
-```mermaid
-graph TB
+```{mermaid}
+graph LR
     A[Kubernetes Concepts] --> B[Pods]
     A --> C[Services]
     A --> D[Deployments]
     A --> E[Ingress]
     A --> F[Namespaces]
     
-    B --> G[Unidad mínima deployable]
+    B --> G[Unidad mínima desplegable]
     C --> H[Punto de acceso estable]
     D --> I[Gestión de aplicaciones]
     E --> J[Acceso desde exterior]
@@ -148,23 +148,23 @@ graph TB
 
 ## Pods: La unidad atómica de Kubernetes
 
-::: {.columns}
-::: {.column width="50%}
 **¿Qué es un Pod?**
+
 - La unidad más pequeña que puedes desplegar
 - Grupo de uno o más contenedores
 - Comparten recursos de red y almacenamiento
 - Mismo contexto de ejecución
 
 **Características clave:**
+
 - Dirección IP única compartida
 - Namespace de red compartido
 - Volúmenes compartidos
 - Ciclo de vida conjunto
-:::
 
-::: {.column width="50%"}
-```mermaid
+## Pods: La unidad atómica de Kubernetes 2
+
+```{mermaid}
 graph TB
     A[Pod IP: 10.0.0.5] --> B[Contenedor App]
     A --> C[Contenedor Sidecar]
@@ -175,8 +175,6 @@ graph TB
     
     style A fill:#e1f5fe
 ```
-:::
-:::
 
 **💡 Importante: Normalmente 1 contenedor por Pod, pero pueden ser más para casos especiales**
 
@@ -194,22 +192,22 @@ Sus IPs **cambian constantemente** → ¡No puedes depender de ellas!
 
 ## Services: La red estable en Kubernetes
 
-::: {.columns}
-::: {.column width="60%}
 **Problema:**
+
 - Los Pods son efímeros (nacen y mueren)
 - Las IPs de los Pods cambian constantemente
 - ¿Cómo encuentran los clientes a los Pods?
 
 **Solución: Services**
+
 - Punto de acceso estable y permanente
 - IP virtual que no cambia
 - Balancea carga entre Pods backend
 - Descubre automáticamente los Pods
-:::
 
-::: {.column width="40%"}
-```mermaid
+## Services: La red estable en Kubernetes 2
+
+```{mermaid}
 graph LR
     A[Cliente] --> B[Service IP: 10.3.241.150]
     B --> C[Pod A: 10.0.0.5]
@@ -218,12 +216,8 @@ graph LR
     
     style B fill:#c8e6c9
 ```
-:::
-:::
 
----
-
-Un **Service** es una abstracción que define un **punto de acceso estable** a un conjunto de pods.
+Un **Servicio** es una abstracción que define un **punto de acceso estable** a un conjunto de pods.
 
 - Usa **etiquetas (labels)** para seleccionar pods.
 - Proporciona una **IP virtual** y un **nombre DNS** fijos.
@@ -232,21 +226,22 @@ Un **Service** es una abstracción que define un **punto de acceso estable** a u
 > 💡 **El Service no se preocupa por IPs reales** → solo por etiquetas.  
 > ¡Los pods pueden morir y renacer, y el Service siempre los encontrará!
 
----
+## Tipos de Servicios
 
-## Tipos de Services
-
-```mermaid
-graph TB
+```{mermaid}
+graph LR
     A[Service Types] --> B[ClusterIP]
     A --> C[NodePort]
     A --> D[LoadBalancer]
     A --> E[ExternalName]
     
     B --> F[Interno al cluster]
-    C --> G[Acceso mediante puertos del nodo]
-    D --> H[Cloud Load Balancer externo]
-    E --> I[Alias para servicio externo]
+    C --> G[Acceso mediante
+    puertos del nodo]
+    D --> H[Cloud Load
+    Balancer externo]
+    E --> I[Alias para
+    servicio externo]
     
     style B fill:#e1f5fe
     style C fill:#fff3e0
@@ -257,50 +252,48 @@ graph TB
 
 ## ClusterIP: Comunicación interna (por defecto)
 
-::: {.columns}
-::: {.column width="60%}
 **Características:**
+
 - IP accesible solo dentro del cluster
 - Default type para servicios
 - Perfecto para comunicación entre microservicios
 
 **Ejemplo típico:**
+
 - Frontend → Backend API
 - API → Database
 - Servicios internos que no exponen al exterior
-:::
 
-::: {.column width="40%"}
-```mermaid
-graph LR
+
+## ClusterIP: Comunicación interna (por defecto) 2
+
+```{mermaid}
+graph TB
     A[Frontend Pod] --> B[API Service<br/>clusterip: 10.96.1.5]
     B --> C[API Pod 1]
     B --> D[API Pod 2]
     
     style B fill:#e1f5fe
 ```
-:::
-:::
 
----
 
 ## NodePort: Acceso externo básico
 
-::: {.columns}
-::: {.column width="60%}
 **Características:**
+
 - Expone el servicio en un puerto estático en cada nodo
 - Accesible desde fuera del cluster
 - Puerto en rango 30000-32767
 
 **Flujo de tráfico:**
+
 1. Cliente → NodeIP:NodePort
 2. Nodo → Service
 3. Service → Pod destino
-:::
 
-::: {.column width="40%"}
-```mermaid
+## NodePort: Acceso externo básico 2
+
+```{mermaid}
 graph TB
     A[Cliente] --> B[NodeIP:30080]
     B --> C[Service]
@@ -308,8 +301,7 @@ graph TB
     
     style B fill:#fff3e0
 ```
-:::
-:::
+
 
 **⚠️ No ideal para producción - usa Ingress**
 
@@ -317,21 +309,22 @@ graph TB
 
 ## LoadBalancer: Integración con cloud
 
-::: {.columns}
-::: {.column width="60%}
 **Características:**
+
 - Crea un load balancer externo en cloud providers
 - Asigna IP externa automáticamente
 - Integración nativa con AWS, GCP, Azure
 
 **Ideal para:**
+
 - Servicios que necesitan IP pública estable
 - Aplicaciones críticas en cloud
 - Cuando necesitas balanceo de carga gestionado
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+## LoadBalancer: Integración con cloud 2
+
+```{mermaid}
 graph TB
     A[Internet] --> B[Cloud LB: 35.200.10.5]
     B --> C[Node 1]
@@ -344,12 +337,11 @@ graph TB
     
     style B fill:#f3e5f5
 ```
-:::
-:::
 
 ---
 
 > 🧩 **Regla mental**:  
+
 > - Interno → `ClusterIP`  
 > - Pruebas → `NodePort`  
 > - Producción → `LoadBalancer`
@@ -380,39 +372,38 @@ spec:
 
 ## Ingress: El router inteligente
 
-::: {.columns}
-::: {.column width="60%}
 **Problema con LoadBalancer:**
+
 - Un LoadBalancer por servicio → costoso
 - No puede hacer routing basado en paths/hosts
 
 **Solución: Ingress**
+
 - Un punto de entrada para múltiples servicios
 - Routing basado en reglas (host, path, headers)
 - Terminación SSL/TLS
 - Rewrite rules y autenticación
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+## Ingress: El router inteligente 2
+
+```{mermaid}
 graph TB
     A[Internet] --> B[Ingress Controller]
-    B --> C[/api → API Service]
-    B --> D[/app → Web Service]
-    B --> E[/docs → Docs Service]
+    B --> C["/api → API Service"]
+    B --> D["/app → Web Service"]
+    B --> E["/docs → Docs Service"]
     
     style B fill:#c8e6c9
 ```
-:::
-:::
 
----
 
 ## Ingress vs LoadBalancer
 
-```mermaid
+```{mermaid}
 graph TB
-    A[Tráfico Entrante] --> B{¿Necesitas routing avanzado?}
+    A[Tráfico Entrante] --> B{¿Necesitas routing
+    avanzado?}
     
     B -->|Sí| C[Ingress Controller]
     B -->|No| D[LoadBalancer Service]
@@ -432,22 +423,23 @@ graph TB
 
 ## Deployments: Gestionando el ciclo de vida
 
-::: {.columns}
-::: {.column width="60%}
+
 **¿Qué resuelve?**
+
 - ¿Cómo actualizo mi app sin downtime?
 - ¿Cómo escalo automáticamente?
 - ¿Cómo vuelvo a una versión anterior?
 
 **Deployment proporciona:**
+
 - Updates rolling (sin downtime)
 - Rollbacks automáticos
 - Escalado automático (HPA)
 - Replica management
-:::
 
-::: {.column width="40%"}
-```mermaid
+## Deployments: Gestionando el ciclo de vida 2
+
+```{mermaid}
 graph TB
     A[Deployment] --> B[ReplicaSet v1]
     A --> C[ReplicaSet v2]
@@ -457,63 +449,62 @@ graph TB
     
     style A fill:#ffccbc
 ```
-:::
-:::
+
 
 ---
 
 ## Modelo de red de Kubernetes
 
-::: {.columns}
-::: {.column width="60%}
 **Principios fundamentales:**
+
 1. Todo Pod puede comunicarse con todo Pod sin NAT
 2. Todo Node puede comunicarse con todo Pod sin NAT
 3. La IP que un Pod ve en sí mismo es la misma que otros Pods ven
 
-**Implementación:**
-- CNI (Container Network Interface) plugins
-- Cada Pod tiene IP real de red
-- No overlays complicados (en la mayoría de casos)
-:::
-
-::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph LR
     A[Pod A] --> B[Pod B]
     C[Pod C] --> B
     A --> C
     
     style A fill:#e1f5fe
-    style B fill:#e1f5fe
-    style C fill:#e1f5fe
+    style B fill:#f5e1fe
+    style C fill:#f5fee1
 ```
-:::
-:::
 
----
+
+## Modelo de red de Kubernetes 2
+
+**Implementación:**
+
+- CNI (Container Network Interface) plugins
+- Cada Pod tiene IP real de red
+- No overlays complicados (en la mayoría de casos)
+
 
 ## DNS en Kubernetes
 
-::: {.columns}
-::: {.column width="60%}
 **Descubrimiento automático de servicios:**
+
 - Cada Service obtiene un DNS name
 - Formato: `<service-name>.<namespace>.svc.cluster.local`
 - Resolución dentro del cluster automática
 
 **Ejemplos:**
+
 - `frontend.default.svc.cluster.local`
 - `database.production.svc.cluster.local`
 - `redis.cache.svc.cluster.local`
 
+
+## DNS en Kubernetes
+
 **Simplificado:**
+
 - `frontend` (mismo namespace)
 - `database.production` (namespace diferente)
-:::
 
-::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph LR
     A[App Pod] --> B[CoreDNS]
     B --> C[Resuelve: api-service]
@@ -521,29 +512,29 @@ graph LR
     
     style B fill:#fff9c4
 ```
-:::
-:::
+
 
 ---
 
 ## Namespaces: Aislamiento lógico
 
-::: {.columns}
-::: {.column width="60%}
 **¿Para qué sirven?**
+
 - Aislar recursos (dev, staging, prod)
 - Límites de recursos por equipo
 - Control de acceso (RBAC)
 
 **Namespaces comunes:**
+
 - `default` (por defecto)
 - `kube-system` (sistema de Kubernetes)
 - `kube-public` (recursos públicos)
 - `custom` (tus aplicaciones)
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+## Namespaces: Aislamiento lógico 2
+
+```{mermaid}
 graph TB
     A[Cluster] --> B[Namespace: dev]
     A --> C[Namespace: staging]
@@ -557,14 +548,12 @@ graph TB
     style C fill:#fff3e0
     style D fill:#c8e6c9
 ```
-:::
-:::
 
 ---
 
 ## Flujo completo: De imagen a servicio expuesto
 
-```mermaid
+```{mermaid}
 graph TB
     A[Imagen Docker] --> B[Deployment]
     B --> C[Pods]
@@ -584,34 +573,39 @@ graph TB
 
 ## ConfigMaps y Secrets: Configuración
 
-::: {.columns}
-::: {.column width="60%}
 **ConfigMaps:**
+
 - Configuración no sensible
 - Variables de entorno, archivos de config
 - Puede montarse como volumen
 
 **Secrets:**
+
 - Información sensible
 - Passwords, tokens, keys
 - Encriptados en etcd
 
+
+## ConfigMaps y Secrets: Configuración 2
+
 **Uso en Pods:**
+
 - Variables de entorno
 - Volúmenes montados
 - Image pull secrets
-:::
 
 Un **ConfigMap** es un objeto de Kubernetes que almacena **datos de configuración no sensibles** como:
+
 - URLs de servicios
 - Nombres de bases de datos
 - Flags de feature
 - Archivos de configuración (`.env`, `.yaml`, etc.)
 
+## ConfigMaps y Secrets: Configuración 3
+
 > 📦 Piensa en un ConfigMap como un **diccionario clave-valor** que vive en el clúster.
 
-::: {.column width="40%"}
-```mermaid
+```{mermaid}
 graph TB
     A[ConfigMap] --> B[Pod]
     C[Secret] --> B
@@ -619,14 +613,11 @@ graph TB
     style C fill:#ffebee
 ```
 
-```mermaid
+```{mermaid}
 graph LR
   ConfigMap["ConfigMap: db-config"] -->|injected as| Pod["Pod: fastapi"]
   Pod --> App["App lee: DB_URL"]
 ```
-
-:::
-:::
 
 ---
 
@@ -635,18 +626,19 @@ graph LR
 ### ¿Qué es un Secret?
 
 Un **Secret** es como un ConfigMap, pero para **datos sensibles**:
+
 - Contraseñas
 - Tokens de API
 - Claves SSH
 - Certificados TLS
+
+## Secrets: Tu bóveda de seguridad 2
 
 > 🔒 Los Secrets se almacenan **codificados en base64** (¡pero no cifrados por defecto!).  
 > En producción, usa **encriptación en reposo** o integración con **Vault/Cloud KMS**.
 
 > 💡 **Regla de oro**:  
 > Si no quieres que aparezca en un screenshot… ¡es un Secret!
-
----
 
 ## ¿Cómo inyectar ConfigMaps y Secrets en tus Pods?
 
@@ -686,24 +678,24 @@ volumes:
 
 ---
 
-
 ## Almacenamiento persistente en Kubernetes
 
-::: {.columns}
-::: {.column width="60%}
 **Problema:**
+
 - Los Pods son efímeros
 - El almacenamiento del Pod se pierde al reiniciar
 - ¿Dónde guardo bases de datos, archivos?
 
 **Solución: Persistent Volumes**
+
 - Almacenamiento persistente independiente del Pod
 - Diferentes backends (local, cloud, NFS, etc.)
 - Claim mechanism (PVC) para solicitar almacenamiento
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+## Almacenamiento persistente en Kubernetes 2
+
+```{mermaid}
 graph TB
     A[Pod] --> B[PersistentVolumeClaim]
     B --> C[PersistentVolume]
@@ -711,14 +703,10 @@ graph TB
     
     style C fill:#fff3e0
 ```
-:::
-:::
-
----
 
 ## Patrón típico: Aplicación web completa
 
-```mermaid
+```{mermaid}
 graph TB
     A[Usuario] --> B[Ingress]
     B --> C[Frontend Service]
@@ -747,23 +735,26 @@ graph TB
 
 ### Con Secrets:
 
-1. **Nunca commits secrets al repositorio**  
+1. **Nunca hagas commits de secretos al repositorio** 
+
    → Usa `.gitignore` y herramientas como `sealed-secrets` o `SOPS`.
 
-2. **Limita el acceso con RBAC**  
-   → Solo los pods que lo necesitan deben poder leer el Secret.
+2. **Limita el acceso con RBAC** 
 
-3. **Rota las credenciales regularmente**  
+   → Solo los pods que lo necesitan deben poder leer secretos.
+
+3. **Rota las credenciales regularmente** 
+
    → Kubernetes actualiza los Secrets en los pods **automáticamente** (¡pero la app debe recargarlos!).
 
-> ⚠️ **¡Ojo!** Los Secrets montados como archivos **se actualizan en vivo**,  
+> ⚠️ **¡Ojo!** Los secretos montados como archivos **se actualizan en vivo**,  
 > pero las variables de entorno **NO** (requieren reinicio del pod).
 
 ---
 
 ## Resumen visual: Arquitectura ideal
 
-```mermaid
+```{mermaid}
 graph LR
   Internet -->|HTTP| Service[Service: LoadBalancer]
   Service --> Deployment[Deployment: fastapi]
@@ -792,57 +783,53 @@ graph LR
 
 > 🚫 **La configuración quemada = deuda técnica con intereses**.
 
----
-
 
 ## Escalado automático: HPA
 
-::: {.columns}
-::: {.column width="60%}
 **Horizontal Pod Autoscaler:**
+
 - Escala automáticamente el número de Pods
 - Basado en métricas de CPU, memoria o custom
 - Define mínimos y máximos
 
 **Ejemplo:**
+
 - CPU > 70% → añadir Pods
 - CPU < 30% → quitar Pods
 - Mínimo: 2 Pods, Máximo: 10 Pods
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+## Escalado automático: HPA 2
+
+```{mermaid}
 graph LR
     A[Métricas] --> B[HPA]
     B --> C[Deployment]
-    C --> D[+ Pods]
-    C --> E[- Pods]
+    C --> D["\+ Pods"]
+    C --> E["\- Pods"]
     
     style B fill:#f3e5f5
 ```
-:::
-:::
-
----
 
 ## Service Mesh: La evolución de las redes
 
-::: {.columns}
-::: {.column width="60%}
 **¿Qué resuelve?**
+
 - Observabilidad (metrics, traces, logs)
 - Comunicación segura (mTLS)
 - Control de tráfico avanzado
 - Resiliencia (retries, timeouts, circuit breakers)
 
 **Implementaciones populares:**
+
 - Istio
 - Linkerd
 - Consul Connect
-:::
 
-::: {.column width="40%"}
-```mermaid
+
+## Service Mesh: La evolución de las redes 2
+
+```{mermaid}
 graph TB
     A[Service Mesh] --> B[Sidecar Proxy]
     A --> C[Control Plane]
@@ -853,8 +840,6 @@ graph TB
     
     style A fill:#e8f5e8
 ```
-:::
-:::
 
 ---
 
@@ -866,8 +851,6 @@ graph TB
 | **Service** | Punto de acceso estable | Comunicación interna/estable |
 | **Ingress** | Routing HTTP/S | Acceso externo con reglas |
 | **LoadBalancer** | IP pública directa | Servicios que necesitan IP única |
-
----
 
 ## Resumen: Redes en Kubernetes
 
@@ -883,16 +866,22 @@ graph TB
 ## Buenas prácticas de networking
 
 **Seguridad:**
+
 - Usa Network Policies para aislar tráfico
 - Limita exposición de servicios
 - Usa mTLS para comunicación interna sensible
 
 **Rendimiento:**
+
 - Elegir CNI plugin apropiado para tu caso
 - Monitorizar métricas de red
 - Optimizar tamaño de pods y recursos
 
+
+## Buenas prácticas de networking 2
+
 **Mantenibilidad:**
+
 - Nomenclatura consistente para servicios
 - Documentar dependencias entre servicios
 - Usar labels y annotations efectivamente
@@ -901,7 +890,7 @@ graph TB
 
 ## Evolución del networking en Kubernetes
 
-```mermaid
+```{mermaid}
 graph LR
     A[Pods básicos] --> B[Services]
     B --> C[Ingress]
@@ -920,6 +909,7 @@ graph LR
 ## ¡Preparados para el mundo real!
 
 **Lo que hemos cubierto:**
+
 - Fundamentos de Kubernetes y su arquitectura
 - Pods, Services y Deployments
 - Estrategias para exponer aplicaciones
