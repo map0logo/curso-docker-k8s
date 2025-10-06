@@ -34,10 +34,22 @@ Service C: LoadBalancer → puerto 30002
 ```
 
 **Problemas:**
+
 - Puertos aleatorios difíciles de recordar
 - Múltiples direcciones IP/LB
 - No hay enrutamiento por dominio o path
 - Costoso en cloud (cada LB cuesta $)
+
+Por ejemplo, imagina esto:
+
+- Tienes **5 aplicaciones web** en tu clúster.  
+- Cada una necesita estar accesible desde internet.  
+- Si usas `LoadBalancer`…  
+  → ¡5 IPs públicas!  
+  → ¡5 balanceadores de carga!  
+  → ¡5 facturas de la nube! 💸
+
+> 😩 **Y ni siquiera puedes usar el mismo dominio para todas**.
 
 
 ```{mermaid}
@@ -56,7 +68,6 @@ graph TB
 ```
 
 
-
 **¿No sería mejor tener `miapp.com/api` y `miapp.com/web`?**
 
 ---
@@ -70,6 +81,18 @@ graph TB
 - API object que gestiona acceso externo a servicios
 - Actúa como un "reverse proxy" en el cluster
 - Enruta tráfico basado en reglas (host/path)
+
+
+**Ingress** es un objeto de Kubernetes que **gestiona el acceso externo a los servicios**, especialmente para **tráfico HTTP/HTTPS**.
+
+- Permite **enrutamiento por host** (`app1.miempresa.com`)  
+- Permite **enrutamiento por ruta** (`miempresa.com/app1`)  
+- Soporta **TLS/SSL** (HTTPS)  
+- Todo con **un solo IP pública**
+
+> **Piensa en Ingress como el “portero de un edificio de oficinas”**:  
+> Recibe a todos los visitantes y los dirige al piso correcto.
+
 
 **Beneficios:**
 
@@ -93,6 +116,22 @@ graph TB
 
 ---
 
+## ¿Por qué Ingress > LoadBalancer?
+
+| Característica        | Service `LoadBalancer` | Ingress |
+|----------------------|------------------------|--------|
+| **IP públicas**      | 1 por servicio         | **1 para todos** |
+| **Enrutamiento HTTP**| No                     | **Sí (por host/ruta)** |
+| **TLS**              | Manual (por servicio)  | **Centralizado** |
+| **Costo en la nube** | Alto                   | **Bajo** |
+| **Escalabilidad**    | Pobre                  | **Excelente** |
+
+> 💰 **Ejemplo real**:  
+> 10 apps → 10 LoadBalancers = $300/mes  
+> 10 apps → 1 Ingress = $30/mes
+
+---
+
 ## Arquitectura Ingress: Dos componentes clave
 
 ```{mermaid}
@@ -108,16 +147,37 @@ graph TB
     style D fill:#fff3e0
 ```
 
-**1. Ingress Controller:** El "software" que hace el enrutamiento (Nginx, Traefik, etc.)  
-**2. Ingress Resource:** La "configuración" con las reglas de enrutamiento
+**1. Ingress Controller:** 
+
+- El "software" que hace el enrutamiento (Nginx, Traefik, HAProxy etc.)
+- Escucha en un puerto (80/443) y **evalúa las reglas de Ingress**
+- **No viene por defecto** → ¡debes instalarlo!
+
+**2. Ingress Resource:** 
+
+La "configuración" con las reglas de enrutamiento. Es un **objeto YAML** que defines indicándole al Controller **cómo enrutar el tráfico**
 
 ---
+
+```{mermaid}
+graph LR
+  Internet -->|HTTP/HTTPS| IngressController["Ingress Controller\n(ej: NGINX Pod)"]
+  IngressController -->|/app1| Service1["Service: app-uno"]
+  IngressController -->|/app2| Service2["Service: app-dos"]
+  Service1 --> Pods1["Pods app-uno"]
+  Service2 --> Pods2["Pods app-dos"]
+```
+
+> 🔑 **Sin Controller, el recurso Ingress no hace nada** → ¡es solo una hoja de instrucciones!
+
+---
+
 
 ## Ingress Controller: El cerebro del enrutamiento
 
 
-
 **¿Qué es?**
+
 - Pod(s) que ejecutan el proxy/reverse proxy
 - Monitorea los recursos Ingress en el cluster
 - Aplica las reglas de enrutamiento configuradas
@@ -258,10 +318,39 @@ graph LR
 
 ---
 
+## TLS/SSL con Ingress: HTTPS sin dolor
+
+### ¿Cómo cifrar el tráfico?
+
+1. Creas un **Secret** con tu certificado TLS
+2. Lo referencias en el Ingress
+
+```yaml
+spec:
+  tls:
+  - hosts:
+    - mi-dominio.com
+    secretName: mi-certificado-tls
+  rules:
+  - host: mi-dominio.com
+    http:
+      paths:
+      - path: /uno
+        ...
+```
+
+> 🔒 **El Ingress Controller maneja el descifrado** → 
+
+> tus apps siguen hablando **HTTP interno** (más simple y seguro dentro del clúster).
+
+---
+
 ## Más allá de los servicios web: Jobs y CronJobs
 
 
-**Problema:** ¿Y las tareas que no son servicios continuos?
+**Problema:**
+
+¿Y las tareas que no son servicios continuos?
 
 **Ejemplos:**
 
@@ -284,13 +373,12 @@ graph TB
     style B fill:#ffcdd2
     style C fill:#c8e6c9
 ```
-:::
-:::
+
+> 🧩 **Kubernetes tiene controladores para eso**: `Job` y `CronJob`.
 
 ---
 
 ## Jobs: Tareas que se ejecutan una vez
-
 
 
 **¿Qué es un Job?**
@@ -359,7 +447,7 @@ spec:
 
 **¿Qué es un CronJob?**
 
-- Como un Job, pero ejecutado en un schedule
+- Como un Job, pero ejecutado con una programación
 - Usa sintaxis cron estándar
 - Crea Jobs según la programación
 
@@ -388,6 +476,8 @@ graph TB
 ```
 
 
+> ⏰ **Es el reemplazo moderno de `cron` en servidores**,  
+> pero con logs, monitoreo y gestión integrados en Kubernetes.
 
 ---
 
@@ -500,23 +590,34 @@ graph TB
 
 ## Buenas prácticas con Ingress
 
-**Seguridad:**
+### 1. Usa nombres de host reales en desarrollo
+- Configura `/etc/hosts` para apuntar `mi-dominio.com` a la IP del Ingress
+- Así pruebas como en producción
 
-- Usa HTTPS con certificados TLS
-- Limita tráfico con network policies
-- Considera WAF (Web Application Firewall)
+### 2. Agrupa reglas relacionadas en un solo Ingress
+- Más fácil de gestionar que 10 objetos Ingress separados
 
-**Configuración:**
+### 3. Nunca expongas Services directamente con `LoadBalancer` si usas Ingress
+- Rompe el modelo de enrutamiento centralizado
 
-- Annotations específicas del controller
-- Timeouts apropiados para tu aplicación
-- Health checks configurados
+### 4. Usa `pathType: Prefix` (no `ImplementationSpecific`)
+- Es más portable entre Ingress Controllers
 
-**Monitoreo:**
+> 🛡️ **Ingress es tu primera línea de defensa**:  
+> Valida, filtra y enruta antes de que el tráfico llegue a tus apps.
 
-- Logs de acceso del Ingress Controller
-- Métricas de latencia y errores
-- Alertas para reglas no satisfechas
+---
+
+## ¿Qué NO hacer con Ingress?
+
+| ❌ Mal | ✅ Bien |
+|--------|--------|
+| Usar Ingress para tráfico TCP/UDP (ej: bases de datos) | Usar `Service: LoadBalancer` o `NodePort` |
+| Olvidar instalar el Ingress Controller | Verificar que el Controller esté corriendo antes de crear Ingress |
+| Poner lógica de negocio en las reglas de Ingress | Usar Ingress solo para enrutamiento, no para autenticación compleja |
+| Asumir que todos los Ingress Controllers soportan las mismas features | Consultar la documentación de tu Controller (NGINX ≠ Traefik) |
+
+> ⚠️ **Ingress es solo para HTTP/HTTPS** → no intentes forzar otros protocolos.
 
 ---
 
@@ -551,6 +652,24 @@ graph TB
 | **Base de datos/con estado** | StatefulSet |
 | **Tarea única** | Job |
 | **Tarea programada** | CronJob |
+
+---
+
+## Resumen visual: Tu clúster con Ingress
+
+```{mermaid}
+graph LR
+  Internet -->|mi-dominio.com/uno| IngressController
+  Internet -->|mi-dominio.com/dos| IngressController
+  IngressController --> AppUno["app-uno<br/>ClusterIP"]
+  IngressController --> AppDos["app-dos<br/>ClusterIP"]
+  CronJob["CronJob"] -->|programado| BackupJob["Job: backup"]
+  BackupJob --> DB["Base de Datos"]
+```
+
+- **Un solo punto de entrada** para múltiples apps  
+- **Enrutamiento inteligente** por URL  
+- **Tareas programadas** sin servidores adicionales
 
 ---
 
